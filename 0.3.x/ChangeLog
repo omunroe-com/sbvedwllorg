@@ -1,0 +1,86 @@
+Version 0.3
+http://svn.edgewall.org/repos/genshi/tags/0.3.0/
+(Sep 17 2006, from branches/stable/0.3.x)
+
+ * The project name was changed from "Markup" to "Genshi". See UPGRADE.txt
+   for upgrade instructions.
+ * Expression evaluation now differentiates between undefined variables and
+   variables that are defined but set to `None`. This also means that local
+   variables can override built-ins even if the local variable are set to
+   `None` (ticket #36).
+ * The plugin implementation now makes more functions available for use inside
+   templates: XML(), HTML(), defined(), and value-of(). These are mostly for
+   migration from Kid.
+ * The parsing of `py:with` directives has been improved: you can now assign
+   to multiple names, and semicolons inside string literals are treated as
+   expected.
+ * Generator expressions can now be used in template expressions (ticket #16).
+ * Added serialization to plain text (ticket #41).
+ * Calling functions from template expressions with *args and/or **kwargs
+   now works correctly (ticket #42).
+ * The `TemplateLoader` class and the `Template` instances that it manages are
+   now thread-safe, as they no longer keep any state related to the current
+   processing context.
+ * Stream filters and serializers can now be applied using the "pipe" (bitwise
+   or) operator "|".
+ * The execution of named template functions (`py:def`) no longer silently
+   swallows TypeError exceptions (ticket #44).
+ * The XML Parser now correctly handles unicode input (ticket #43).
+ * HTML entities can now be used in templates without having to declare an HTML
+   document type.
+ * Error reporting on undefined entities has been fixed.
+ * Fix traversal of substreams by XPath expressions. For example, the path
+   '*/*' no longer matches non-immediate child elements, and '@*' no longer
+   matches the attributes of descendants.
+ * Fixes for `py:match` which would get confused when it should be applied
+   to multiple elements (ticket #49).
+ * Using namespace prefixes in XPath expressions is now supported.
+ * Expressions now correctly handle slices (ticket #51).
+ * A simple text-based template language is now included for generating
+   plain text output (ticket #47).
+
+
+Version 0.2
+http://svn.edgewall.org/repos/genshi/tags/0.2.0/
+(Aug 22 2006, from branches/stable/0.2.x)
+
+ * XPath syntax errors now contain position info (ticket #20).
+ * Errors in expression evaluation now contain the correct line number in the
+   template (ticket #22).
+ * <script> and <style> element contents are no longer escaped when using HTML
+   serialization (ticket #24).
+ * In some cases expressions in templates did not get interpolated (ticket
+   #26).
+ * CDATA sections are now passed through the pipeline and serialized correctly.
+   That allows using <script> or <style> elements in XHTML output that is still
+   compatible with HTML user agents.
+ * The XHTML serializer now correctly handles elements in foreign namespaces
+   (such as SVG or MathML).
+ * Fixed relative includes in templates on Windows (ticket #27).
+ * Output can be encoded using legacy codecs such as ISO-8859-1. Any character
+   not representable in the chosen encoding gets replaced by the corresponding
+   XML character reference.
+ * String literals in XPath expressions that contain spaces are now parsed
+   as expected.
+ * Added support for the XPath functions boolean(), ceiling(), concat(),
+   contains(), false(), floor(), normalize-space(), number(), round(),
+   starts-with(), string-length(), substring(), substring-after(),
+   substring-before(), translate(), and true().
+ * Non-ASCII characters in expressions should now be handled correctly (ticket
+   #29).
+ * Default values for arguments of template functions now also work with
+   constants and complex expressions (they only worked for string or number
+   literals before).
+ * XPath expressions in now support XPath variables ($var) in predicates
+   (ticket #31).
+ * Expressions in templates can now span multiple lines if they are enclosed
+   in curly braces.
+ * py:def macros can now be invoked from within expressions inside attribute
+   values (ticket #34).
+
+
+Version 0.1
+http://svn.edgewall.org/repos/genshi/tags/0.1.0/
+(Aug 3 2006, from branches/stable/0.1.x)
+
+ * First public release
