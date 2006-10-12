@@ -24,17 +24,12 @@ import compiler
 import os
 import re
 from StringIO import StringIO
-try:
-    import threading
-except ImportError:
-    import dummythreading as threading
 
 from genshi.core import Attrs, Namespace, Stream, StreamEventKind, _ensure
 from genshi.core import START, END, START_NS, END_NS, TEXT, COMMENT
 from genshi.eval import Expression
 from genshi.input import XMLParser
 from genshi.path import Path
-from genshi.util import LRUCache
 
 __all__ = ['BadDirectiveError', 'MarkupTemplate', 'Template', 'TemplateError',
            'TemplateSyntaxError', 'TemplateNotFound', 'TemplateLoader',
@@ -1270,23 +1265,20 @@ class TemplateLoader(object):
     
     >>> os.remove(path)
     """
-    def __init__(self, search_path=None, auto_reload=False, max_cache_size=25):
+    def __init__(self, search_path=None, auto_reload=False):
         """Create the template laoder.
         
         @param search_path: a list of absolute path names that should be
             searched for template files
         @param auto_reload: whether to check the last modification time of
             template files, and reload them if they have changed
-        @param max_cache_size: the maximum number of templates to keep in the
-            cache
         """
         self.search_path = search_path
         if self.search_path is None:
             self.search_path = []
         self.auto_reload = auto_reload
-        self._cache = LRUCache(max_cache_size)
+        self._cache = {}
         self._mtime = {}
-        self._lock = threading.Lock()
 
     def load(self, filename, relative_to=None, cls=MarkupTemplate):
         """Load the template with the given name.
@@ -1318,50 +1310,45 @@ class TemplateLoader(object):
             filename = os.path.join(os.path.dirname(relative_to), filename)
         filename = os.path.normpath(filename)
 
-        self._lock.acquire()
+        # First check the cache to avoid reparsing the same file
         try:
-            # First check the cache to avoid reparsing the same file
+            tmpl = self._cache[filename]
+            if not self.auto_reload or \
+                    os.path.getmtime(tmpl.filepath) == self._mtime[filename]:
+                return tmpl
+        except KeyError:
+            pass
+
+        search_path = self.search_path
+
+        if os.path.isabs(filename):
+            # Bypass the search path if the requested filename is absolute
+            search_path = [os.path.dirname(filename)]
+
+        elif relative_to and os.path.isabs(relative_to):
+            # Make sure that the directory containing the including
+            # template is on the search path
+            dirname = os.path.dirname(relative_to)
+            if dirname not in search_path:
+                search_path = search_path[:] + [dirname]
+
+        elif not search_path:
+            # Uh oh, don't know where to look for the template
+            raise TemplateError('Search path for templates not configured')
+
+        for dirname in search_path:
+            filepath = os.path.join(dirname, filename)
             try:
-                tmpl = self._cache[filename]
-                if not self.auto_reload or \
-                        os.path.getmtime(tmpl.filepath) == self._mtime[filename]:
-                    return tmpl
-            except KeyError:
-                pass
-
-            search_path = self.search_path
-
-            if os.path.isabs(filename):
-                # Bypass the search path if the requested filename is absolute
-                search_path = [os.path.dirname(filename)]
-
-            elif relative_to and os.path.isabs(relative_to):
-                # Make sure that the directory containing the including
-                # template is on the search path
-                dirname = os.path.dirname(relative_to)
-                if dirname not in search_path:
-                    search_path = search_path[:] + [dirname]
-
-            elif not search_path:
-                # Uh oh, don't know where to look for the template
-                raise TemplateError('Search path for templates not configured')
-
-            for dirname in search_path:
-                filepath = os.path.join(dirname, filename)
+                fileobj = open(filepath, 'U')
                 try:
-                    fileobj = open(filepath, 'U')
-                    try:
-                        tmpl = cls(fileobj, basedir=dirname, filename=filename,
-                                   loader=self)
-                    finally:
-                        fileobj.close()
-                    self._cache[filename] = tmpl
-                    self._mtime[filename] = os.path.getmtime(filepath)
-                    return tmpl
-                except IOError:
-                    continue
+                    tmpl = cls(fileobj, basedir=dirname, filename=filename,
+                               loader=self)
+                finally:
+                    fileobj.close()
+                self._cache[filename] = tmpl
+                self._mtime[filename] = os.path.getmtime(filepath)
+                return tmpl
+            except IOError:
+                continue
 
-            raise TemplateNotFound(filename, search_path)
-
-        finally:
-            self._lock.release()
+        raise TemplateNotFound(filename, search_path)
