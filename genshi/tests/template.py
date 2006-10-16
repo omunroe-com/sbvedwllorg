@@ -198,21 +198,6 @@ class ChooseDirectiveTestCase(unittest.TestCase):
         </doc>""")
         self.assertRaises(TemplateRuntimeError, str, tmpl.generate())
 
-    def test_when_without_test_but_with_choose_value(self):
-        """
-        Verify that an `when` directive that doesn't have a `test` attribute
-        works as expected as long as the parent `choose` directive has a test
-        expression.
-        """
-        tmpl = MarkupTemplate("""<doc xmlns:py="http://genshi.edgewall.org/">
-          <div py:choose="foo" py:strip="">
-            <py:when>foo</py:when>
-          </div>
-        </doc>""")
-        self.assertEqual("""<doc>
-            foo
-        </doc>""", str(tmpl.generate(foo='Yeah')))
-
     def test_otherwise_without_test(self):
         """
         Verify that an `otherwise` directive can be used without a `test`
@@ -733,52 +718,6 @@ class MatchDirectiveTestCase(unittest.TestCase):
         self.assertEqual("""<html xmlns:x="http://www.example.org/">
           <div>Foo</div>
         </html>""", str(tmpl.generate()))
-
-    def test_match_with_position_predicate(self):
-        tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-          <p py:match="body/p[1]" class="first">${select('*|text()')}</p>
-          <body>
-            <p>Foo</p>
-            <p>Bar</p>
-          </body>
-        </html>""")
-        self.assertEqual("""<html>
-          <body>
-            <p class="first">Foo</p>
-            <p>Bar</p>
-          </body>
-        </html>""", str(tmpl.generate()))
-
-    def test_match_with_closure(self):
-        tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-          <p py:match="body//p" class="para">${select('*|text()')}</p>
-          <body>
-            <p>Foo</p>
-            <div><p>Bar</p></div>
-          </body>
-        </html>""")
-        self.assertEqual("""<html>
-          <body>
-            <p class="para">Foo</p>
-            <div><p class="para">Bar</p></div>
-          </body>
-        </html>""", str(tmpl.generate()))
-
-    # FIXME
-    #def test_match_without_closure(self):
-    #    tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-    #      <p py:match="body/p" class="para">${select('*|text()')}</p>
-    #      <body>
-    #        <p>Foo</p>
-    #        <div><p>Bar</p></div>
-    #      </body>
-    #    </html>""")
-    #    self.assertEqual("""<html>
-    #      <body>
-    #        <p class="para">Foo</p>
-    #        <div><p>Bar</p></div>
-    #      </body>
-    #    </html>""", str(tmpl.generate()))
 
     # FIXME
     #def test_match_after_step(self):
