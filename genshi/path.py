@@ -117,19 +117,19 @@ class Path(object):
         stream = iter(stream)
         def _generate():
             test = self.test()
-            for event in stream:
-                result = test(event, namespaces, variables)
+            for kind, data, pos in stream:
+                result = test(kind, data, pos, namespaces, variables)
                 if result is True:
-                    yield event
+                    yield kind, data, pos
                     depth = 1
                     while depth > 0:
-                        subevent = stream.next()
-                        if subevent[0] is START:
+                        subkind, subdata, subpos = stream.next()
+                        if subkind is START:
                             depth += 1
-                        elif subevent[0] is END:
+                        elif subkind is END:
                             depth -= 1
-                        yield subevent
-                        test(subevent, namespaces, variables, updateonly=True)
+                        yield subkind, subdata, subpos
+                        test(subkind, subdata, subpos, namespaces, variables)
                 elif result:
                     yield result
         return Stream(_generate())
@@ -138,13 +138,10 @@ class Path(object):
         """Returns a function that can be used to track whether the path matches
         a specific stream event.
         
-        The function returned expects the positional arguments `event`,
-        `namespaces` and `variables`. The first is a stream event, while the
-        latter two are a mapping of namespace prefixes to URIs, and a mapping
-        of variable names to values, respectively. In addition, the function
-        accepts an `updateonly` keyword argument that default to `False`. If
-        it is set to `True`, the function only updates its internal state,
-        but does not perform any tests or return a result.
+        The function returned expects the positional arguments `kind`, `data`,
+        `pos` (basically an unpacked stream event), as well as `namespaces`
+        and `variables`. The latter two are a mapping of namespace prefixes to
+        URIs, and a mapping of variable names to values, respectively.
         
         If the path matches the event, the function returns the match (for
         example, a `START` or `TEXT` event.) Otherwise, it returns `None`.
@@ -152,17 +149,17 @@ class Path(object):
         >>> from genshi.input import XML
         >>> xml = XML('<root><elem><child id="1"/></elem><child id="2"/></root>')
         >>> test = Path('child').test()
-        >>> for event in xml:
-        ...     if test(event, {}, {}):
-        ...         print event
-        ('START', (u'child', [(u'id', u'2')]), (None, 1, 34))
+        >>> for kind, data, pos in xml:
+        ...     if test(kind, data, pos, {}, {}):
+        ...         print kind, data
+        START (u'child', [(u'id', u'2')])
         """
         paths = [(p, len(p), [0], [], [0] * len(p)) for p in self.paths]
 
-        def _test(event, namespaces, variables, updateonly=False):
-            kind, data, pos = event
+        def _test(kind, data, pos, namespaces, variables):
             retval = None
             for steps, size, cursors, cutoff, counter in paths:
+
                 # Manage the stack that tells us "where we are" in the stream
                 if kind is END:
                     if cursors:
@@ -171,7 +168,7 @@ class Path(object):
                 elif kind is START:
                     cursors.append(cursors and cursors[-1] or 0)
 
-                if updateonly or retval or not cursors:
+                if retval or not cursors:
                     continue
                 cursor = cursors[-1]
                 depth = len(cursors)

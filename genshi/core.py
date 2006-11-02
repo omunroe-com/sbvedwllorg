@@ -22,11 +22,6 @@ __all__ = ['Stream', 'Markup', 'escape', 'unescape', 'Namespace', 'QName']
 
 class StreamEventKind(str):
     """A kind of event on an XML stream."""
-    __slots__ = []
-    _instances = {}
-
-    def __new__(cls, val):
-        return cls._instances.setdefault(val, str.__new__(cls, val))
 
 
 class Stream(object):
@@ -508,15 +503,6 @@ class Namespace(object):
             return uri
         return object.__new__(cls, uri)
 
-    def __getnewargs__(self):
-        return (self.uri,)
-
-    def __getstate__(self):
-        return self.uri
-
-    def __setstate__(self, uri):
-        self.uri = uri
-
     def __init__(self, uri):
         self.uri = unicode(uri)
 
@@ -586,6 +572,3 @@ class QName(unicode):
             self = unicode.__new__(cls, qname)
             self.namespace, self.localname = None, unicode(qname)
         return self
-
-    def __getnewargs__(self):
-        return (self.lstrip('{'),)

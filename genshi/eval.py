@@ -65,14 +65,6 @@ class Expression(object):
     __slots__ = ['source', 'code']
 
     def __init__(self, source, filename=None, lineno=-1):
-        """Create the expression, either from a string, or from an AST node.
-        
-        @param source: either a string containing the source code of the
-            expression, or an AST node
-        @param filename: the (preferably absolute) name of the file containing
-            the expression
-        @param lineno: the number of the line on which the expression was found
-        """
         if isinstance(source, basestring):
             self.source = source
             self.code = _compile(_parse(source), self.source, filename=filename,
@@ -134,17 +126,15 @@ class Undefined(object):
         ...
     NameError: Variable "foo" is not defined
     """
-    __slots__ = ['_name']
+    __slots__ = ['name']
 
     def __init__(self, name):
-        self._name = name
+        self.name = name
 
     def __call__(self, *args, **kwargs):
-        __traceback_hide__ = True
         self.throw()
 
     def __getattr__(self, name):
-        __traceback_hide__ = True
         self.throw()
 
     def __iter__(self):
@@ -157,8 +147,7 @@ class Undefined(object):
         return 'undefined'
 
     def throw(self):
-        __traceback_hide__ = True
-        raise NameError('Variable "%s" is not defined' % self._name)
+        raise NameError('Variable "%s" is not defined' % self.name)
 
 
 def _parse(source, mode='eval'):
@@ -186,14 +175,13 @@ def _compile(node, source=None, filename=None, lineno=-1):
     return new.code(0, code.co_nlocals, code.co_stacksize,
                     code.co_flags | 0x0040, code.co_code, code.co_consts,
                     code.co_names, code.co_varnames, filename,
-                    '<Expression %s>' % (repr(source or '?').replace("'", '"')),
+                    '<Expression %s>' % (repr(source).replace("'", '"') or '?'),
                     lineno, code.co_lnotab, (), ())
 
 BUILTINS = __builtin__.__dict__.copy()
 BUILTINS['Undefined'] = Undefined
 
 def _lookup_name(data, name, locals_=None):
-    __traceback_hide__ = True
     val = Undefined
     if locals_:
         val = locals_.get(name, val)
@@ -210,7 +198,6 @@ def _lookup_name(data, name, locals_=None):
     return val(name)
 
 def _lookup_attr(data, obj, key):
-    __traceback_hide__ = True
     if type(obj) is Undefined:
         obj.throw()
     if hasattr(obj, key):
@@ -218,10 +205,9 @@ def _lookup_attr(data, obj, key):
     try:
         return obj[key]
     except (KeyError, TypeError):
-        return Undefined(key)
+        return None
 
 def _lookup_item(data, obj, key):
-    __traceback_hide__ = True
     if type(obj) is Undefined:
         obj.throw()
     if len(key) == 1:
@@ -230,11 +216,10 @@ def _lookup_item(data, obj, key):
         return obj[key]
     except (KeyError, IndexError, TypeError), e:
         if isinstance(key, basestring):
-            val = getattr(obj, key, Undefined)
-            if val is Undefined:
-                val = Undefined(key)
-            return val
-        raise
+            try:
+                return getattr(obj, key)
+            except (AttributeError, TypeError), e:
+                pass
 
 
 class ASTTransformer(object):

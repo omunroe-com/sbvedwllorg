@@ -24,17 +24,12 @@ import compiler
 import os
 import re
 from StringIO import StringIO
-try:
-    import threading
-except ImportError:
-    import dummythreading as threading
 
 from genshi.core import Attrs, Namespace, Stream, StreamEventKind, _ensure
 from genshi.core import START, END, START_NS, END_NS, TEXT, COMMENT
 from genshi.eval import Expression, _parse
 from genshi.input import XMLParser
 from genshi.path import Path
-from genshi.util import LRUCache
 
 __all__ = ['BadDirectiveError', 'MarkupTemplate', 'Template', 'TemplateError',
            'TemplateSyntaxError', 'TemplateNotFound', 'TemplateLoader',
@@ -302,12 +297,15 @@ class ContentDirective(Directive):
 
     def __call__(self, stream, ctxt, directives):
         def _generate():
-            yield stream.next()
-            yield EXPR, self.expr, (None, -1, -1)
-            event = stream.next()
-            for next in stream:
-                event = next
-            yield event
+            kind, data, pos = stream.next()
+            if kind is START:
+                yield kind, data, pos # emit start tag
+            yield EXPR, self.expr, pos
+            previous = stream.next()
+            for event in stream:
+                previous = event
+            if previous is not None:
+                yield previous
 
         return _apply_directives(_generate(), ctxt, directives)
 
@@ -549,7 +547,8 @@ class ReplaceDirective(Directive):
     __slots__ = []
 
     def __call__(self, stream, ctxt, directives):
-        yield EXPR, self.expr, (None, -1, -1)
+        kind, data, pos = stream.next()
+        yield EXPR, self.expr, pos
 
 
 class StripDirective(Directive):
@@ -677,18 +676,14 @@ class WhenDirective(Directive):
                                        self.filename, *stream.next()[2][1:])
         if matched:
             return []
-        if not self.expr and '_choose.value' not in frame:
-            raise TemplateRuntimeError('either "choose" or "when" directive '
-                                       'must have a test expression',
+        if not self.expr:
+            raise TemplateRuntimeError('"when" directive has no test condition',
                                        self.filename, *stream.next()[2][1:])
+        value = self.expr.evaluate(ctxt)
         if '_choose.value' in frame:
-            value = frame['_choose.value']
-            if self.expr:
-                matched = value == self.expr.evaluate(ctxt)
-            else:
-                matched = bool(value)
+            matched = (value == frame['_choose.value'])
         else:
-            matched = bool(self.expr.evaluate(ctxt))
+            matched = bool(value)
         frame['_choose.matched'] = matched
         if not matched:
             return []
@@ -928,36 +923,44 @@ class Template(object):
 
             elif kind is EXPR:
                 result = data.evaluate(ctxt)
-                if result is not None:
-                    # First check for a string, otherwise the iterable test below
-                    # succeeds, and the string will be chopped up into individual
-                    # characters
-                    if isinstance(result, basestring):
-                        yield TEXT, result, pos
-                    elif hasattr(result, '__iter__'):
-                        substream = _ensure(result)
+                if result is None:
+                    continue
+
+                # First check for a string, otherwise the iterable test below
+                # succeeds, and the string will be chopped up into individual
+                # characters
+                if isinstance(result, basestring):
+                    yield TEXT, result, pos
+                else:
+                    # Test if the expression evaluated to an iterable, in which
+                    # case we yield the individual items
+                    try:
+                        substream = _ensure(iter(result))
+                    except TypeError:
+                        # Neither a string nor an iterable, so just pass it
+                        # through
+                        yield TEXT, unicode(result), pos
+                    else:
                         for filter_ in filters:
                             substream = filter_(substream, ctxt)
                         for event in substream:
                             yield event
-                    else:
-                        yield TEXT, unicode(result), pos
 
             else:
                 yield kind, data, pos
 
     def _flatten(self, stream, ctxt):
         """Internal stream filter that expands `SUB` events in the stream."""
-        for event in stream:
-            if event[0] is SUB:
+        for kind, data, pos in stream:
+            if kind is SUB:
                 # This event is a list of directives and a list of nested
                 # events to which those directives should be applied
-                directives, substream = event[1]
+                directives, substream = data
                 substream = _apply_directives(substream, ctxt, directives)
                 for event in self._flatten(substream, ctxt):
                     yield event
             else:
-                yield event
+                yield kind, data, pos
 
 
 EXPR = Template.EXPR
@@ -1106,46 +1109,47 @@ class MarkupTemplate(Template):
         def _strip(stream):
             depth = 1
             while 1:
-                event = stream.next()
-                if event[0] is START:
+                kind, data, pos = stream.next()
+                if kind is START:
                     depth += 1
-                elif event[0] is END:
+                elif kind is END:
                     depth -= 1
                 if depth > 0:
-                    yield event
+                    yield kind, data, pos
                 else:
-                    tail[:] = [event]
+                    tail[:] = [(kind, data, pos)]
                     break
 
-        for event in stream:
+        for kind, data, pos in stream:
 
             # We (currently) only care about start and end events for matching
             # We might care about namespace events in the future, though
-            if not match_templates or (event[0] is not START and
-                                       event[0] is not END):
-                yield event
+            if not match_templates or kind not in (START, END):
+                yield kind, data, pos
                 continue
 
             for idx, (test, path, template, namespaces, directives) in \
                     enumerate(match_templates):
 
-                if test(event, namespaces, ctxt) is True:
+                if test(kind, data, pos, namespaces, ctxt) is True:
 
                     # Let the remaining match templates know about the event so
                     # they get a chance to update their internal state
                     for test in [mt[0] for mt in match_templates[idx + 1:]]:
-                        test(event, namespaces, ctxt, updateonly=True)
+                        test(kind, data, pos, namespaces, ctxt)
 
                     # Consume and store all events until an end event
                     # corresponding to this start event is encountered
-                    content = chain([event], self._match(_strip(stream), ctxt),
+                    content = chain([(kind, data, pos)],
+                                    self._match(_strip(stream), ctxt),
                                     tail)
                     for filter_ in self.filters[3:]:
                         content = filter_(content, ctxt)
                     content = list(content)
 
+                    kind, data, pos = tail[0]
                     for test in [mt[0] for mt in match_templates]:
-                        test(tail[0], namespaces, ctxt, updateonly=True)
+                        test(kind, data, pos, namespaces, ctxt)
 
                     # Make the select() function available in the body of the
                     # match template
@@ -1166,7 +1170,7 @@ class MarkupTemplate(Template):
                     break
 
             else: # no matches
-                yield event
+                yield kind, data, pos
 
 
 class TextTemplate(Template):
@@ -1289,29 +1293,23 @@ class TemplateLoader(object):
     >>> os.remove(path)
     """
     def __init__(self, search_path=None, auto_reload=False,
-                 default_encoding=None, max_cache_size=25):
+                 default_encoding=None):
         """Create the template laoder.
         
         @param search_path: a list of absolute path names that should be
-            searched for template files, or a string containing a single
-            absolute path
+            searched for template files
         @param auto_reload: whether to check the last modification time of
             template files, and reload them if they have changed
         @param default_encoding: the default encoding to assume when loading
             templates; defaults to UTF-8
-        @param max_cache_size: the maximum number of templates to keep in the
-            cache
         """
         self.search_path = search_path
         if self.search_path is None:
             self.search_path = []
-        elif isinstance(self.search_path, basestring):
-            self.search_path = [self.search_path]
         self.auto_reload = auto_reload
         self.default_encoding = default_encoding
-        self._cache = LRUCache(max_cache_size)
+        self._cache = {}
         self._mtime = {}
-        self._lock = threading.Lock()
 
     def load(self, filename, relative_to=None, cls=MarkupTemplate,
              encoding=None):
@@ -1348,61 +1346,56 @@ class TemplateLoader(object):
             filename = os.path.join(os.path.dirname(relative_to), filename)
         filename = os.path.normpath(filename)
 
-        self._lock.acquire()
+        # First check the cache to avoid reparsing the same file
         try:
-            # First check the cache to avoid reparsing the same file
+            tmpl = self._cache[filename]
+            if not self.auto_reload or \
+                    os.path.getmtime(tmpl.filepath) == self._mtime[filename]:
+                return tmpl
+        except KeyError:
+            pass
+
+        search_path = self.search_path
+        isabs = False
+
+        if os.path.isabs(filename):
+            # Bypass the search path if the requested filename is absolute
+            search_path = [os.path.dirname(filename)]
+            isabs = True
+
+        elif relative_to and os.path.isabs(relative_to):
+            # Make sure that the directory containing the including
+            # template is on the search path
+            dirname = os.path.dirname(relative_to)
+            if dirname not in search_path:
+                search_path = search_path + [dirname]
+            isabs = True
+
+        elif not search_path:
+            # Uh oh, don't know where to look for the template
+            raise TemplateError('Search path for templates not configured')
+
+        for dirname in search_path:
+            filepath = os.path.join(dirname, filename)
             try:
-                tmpl = self._cache[filename]
-                if not self.auto_reload or \
-                        os.path.getmtime(tmpl.filepath) == self._mtime[filename]:
-                    return tmpl
-            except KeyError:
-                pass
-
-            search_path = self.search_path
-            isabs = False
-
-            if os.path.isabs(filename):
-                # Bypass the search path if the requested filename is absolute
-                search_path = [os.path.dirname(filename)]
-                isabs = True
-
-            elif relative_to and os.path.isabs(relative_to):
-                # Make sure that the directory containing the including
-                # template is on the search path
-                dirname = os.path.dirname(relative_to)
-                if dirname not in search_path:
-                    search_path = search_path + [dirname]
-                isabs = True
-
-            elif not search_path:
-                # Uh oh, don't know where to look for the template
-                raise TemplateError('Search path for templates not configured')
-
-            for dirname in search_path:
-                filepath = os.path.join(dirname, filename)
+                fileobj = open(filepath, 'U')
                 try:
-                    fileobj = open(filepath, 'U')
-                    try:
-                        if isabs:
-                            # If the filename of either the included or the 
-                            # including template is absolute, make sure the
-                            # included template gets an absolute path, too,
-                            # so that nested include work properly without a
-                            # search path
-                            filename = os.path.join(dirname, filename)
-                            dirname = ''
-                        tmpl = cls(fileobj, basedir=dirname, filename=filename,
-                                   loader=self, encoding=encoding)
-                    finally:
-                        fileobj.close()
-                    self._cache[filename] = tmpl
-                    self._mtime[filename] = os.path.getmtime(filepath)
-                    return tmpl
-                except IOError:
-                    continue
+                    if isabs:
+                        # If the filename of either the included or the 
+                        # including template is absolute, make sure the
+                        # included template gets an absolute path, too,
+                        # so that nested include work properly without a
+                        # search path
+                        filename = os.path.join(dirname, filename)
+                        dirname = ''
+                    tmpl = cls(fileobj, basedir=dirname, filename=filename,
+                               loader=self, encoding=encoding)
+                finally:
+                    fileobj.close()
+                self._cache[filename] = tmpl
+                self._mtime[filename] = os.path.getmtime(filepath)
+                return tmpl
+            except IOError:
+                continue
 
-            raise TemplateNotFound(filename, search_path)
-
-        finally:
-            self._lock.release()
+        raise TemplateNotFound(filename, search_path)

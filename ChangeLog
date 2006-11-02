@@ -1,28 +1,3 @@
-Version 0.4
-http://svn.edgewall.org/repos/genshi/tags/0.4.0/
-(?, from branches/stable/0.4.x)
-
- * New example applications for CherryPy and web.py.
- * The template loader now uses a LRU cache to limit the number of cached
-   templates to a configurable maximum. Also, a race condition in the template
-   loader was fixed by adding locking.
- * A new filter (genshi.filters.HTMLFormFiller) was added, which can populate 
-   HTML forms based on a dictionary of values.
- * The set of permitted tag and attribute names for the HTMLSanitizer can now
-   be configured per instance.
- * The template engine plugin now supports a range of options for
-   configuration, for example to set the default serialization method, the
-   default output encoding, or the default DOCTYPE.
- * The ElementTree adaptation function `ET()` has moved into the `genshi.input`
-   module.
- * Allow `when` directives to omit the test expression as long as the
-   associated choose directive does have one. In that case, the when branch is
-   followed if the expression of the choose directive evaluates to a truth
-   value.
- * Unsuccessful attribute or item lookups now return `Undefined` objects for
-   nicer error messages.
-
-
 Version 0.3.4
 http://svn.edgewall.org/repos/genshi/tags/0.3.4/
 (Nov 2 2006, from branches/stable/0.3.x)

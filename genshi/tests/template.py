@@ -198,21 +198,6 @@ class ChooseDirectiveTestCase(unittest.TestCase):
         </doc>""")
         self.assertRaises(TemplateRuntimeError, str, tmpl.generate())
 
-    def test_when_without_test_but_with_choose_value(self):
-        """
-        Verify that an `when` directive that doesn't have a `test` attribute
-        works as expected as long as the parent `choose` directive has a test
-        expression.
-        """
-        tmpl = MarkupTemplate("""<doc xmlns:py="http://genshi.edgewall.org/">
-          <div py:choose="foo" py:strip="">
-            <py:when>foo</py:when>
-          </div>
-        </doc>""")
-        self.assertEqual("""<doc>
-            foo
-        </doc>""", str(tmpl.generate(foo='Yeah')))
-
     def test_otherwise_without_test(self):
         """
         Verify that an `otherwise` directive can be used without a `test`
@@ -734,52 +719,6 @@ class MatchDirectiveTestCase(unittest.TestCase):
           <div>Foo</div>
         </html>""", str(tmpl.generate()))
 
-    def test_match_with_position_predicate(self):
-        tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-          <p py:match="body/p[1]" class="first">${select('*|text()')}</p>
-          <body>
-            <p>Foo</p>
-            <p>Bar</p>
-          </body>
-        </html>""")
-        self.assertEqual("""<html>
-          <body>
-            <p class="first">Foo</p>
-            <p>Bar</p>
-          </body>
-        </html>""", str(tmpl.generate()))
-
-    def test_match_with_closure(self):
-        tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-          <p py:match="body//p" class="para">${select('*|text()')}</p>
-          <body>
-            <p>Foo</p>
-            <div><p>Bar</p></div>
-          </body>
-        </html>""")
-        self.assertEqual("""<html>
-          <body>
-            <p class="para">Foo</p>
-            <div><p class="para">Bar</p></div>
-          </body>
-        </html>""", str(tmpl.generate()))
-
-    # FIXME
-    #def test_match_without_closure(self):
-    #    tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/">
-    #      <p py:match="body/p" class="para">${select('*|text()')}</p>
-    #      <body>
-    #        <p>Foo</p>
-    #        <div><p>Bar</p></div>
-    #      </body>
-    #    </html>""")
-    #    self.assertEqual("""<html>
-    #      <body>
-    #        <p class="para">Foo</p>
-    #        <div><p>Bar</p></div>
-    #      </body>
-    #    </html>""", str(tmpl.generate()))
-
     # FIXME
     #def test_match_after_step(self):
     #    tmpl = MarkupTemplate("""<div xmlns:py="http://genshi.edgewall.org/">
@@ -1173,21 +1112,6 @@ class TextTemplateTestCase(unittest.TestCase):
         tmpl = TextTemplate(text, encoding='iso-8859-1')
         self.assertEqual(u'x\xf6y', unicode(tmpl.generate(foo='x', bar='y')))
 
-    # FIXME
-    #def test_empty_lines(self):
-    #    tmpl = TextTemplate("""Your items:
-    #
-    #    #for item in items
-    #      * ${item}
-    #
-    #    #end""")
-    #    self.assertEqual("""Your items:
-    #      * 0
-    #      * 1
-    #      * 2
-    #    """, tmpl.generate(items=range(3)).render('text'))
-
-
 class TemplateLoaderTestCase(unittest.TestCase):
     """Tests for the template loader."""
 
@@ -1196,14 +1120,6 @@ class TemplateLoaderTestCase(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.dirname)
-
-    def test_search_path_empty(self):
-        loader = TemplateLoader()
-        self.assertEqual([], loader.search_path)
-
-    def test_search_path_as_string(self):
-        loader = TemplateLoader(self.dirname)
-        self.assertEqual([self.dirname], loader.search_path)
 
     def test_relative_include_samedir(self):
         file1 = open(os.path.join(self.dirname, 'tmpl1.html'), 'w')
