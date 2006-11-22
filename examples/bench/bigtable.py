@@ -8,9 +8,12 @@
 import cgi
 import sys
 import timeit
-from StringIO import StringIO
+
 from genshi.builder import tag
 from genshi.template import MarkupTemplate
+import neo_cgi
+import neo_cs
+import neo_util
 
 try:
     from elementtree import ElementTree as et
@@ -40,11 +43,6 @@ try:
 except ImportError:
     DjangoContext = DjangoTemplate = None
 
-try:
-    from myghty.interp import Interpreter as MyghtyInterpreter
-except ImportError:
-    MyghtyInterpreter = None
-
 table = [dict(a=1,b=2,c=3,d=4,e=5,f=6,g=7,h=8,i=9,j=10)
           for x in range(1000)]
 
@@ -73,24 +71,6 @@ if DjangoTemplate:
         """Djange template"""
         context = DjangoContext({'table': table})
         django_tmpl.render(context)
-
-if MyghtyInterpreter:
-    interpreter = MyghtyInterpreter()
-    component = interpreter.make_component("""
-<table>
-% for row in ARGS['table']:
-   <tr>
-%    for col in row.values():
-     <td><% col %></td>
-%
-%
-   </tr>
-</table>
-""")
-    def test_myghty():
-        """Myghty Template"""
-        buf = StringIO()
-        interpreter.execute(component, request_args={'table':table}, out_buffer=buf)
 
 def test_genshi():
     """Genshi template"""
@@ -186,10 +166,9 @@ if neo_cgi:
 
 
 def run(which=None, number=10):
-    tests = ['test_builder', 'test_genshi', 'test_genshi_builder', 'test_myghty', 'test_kid',
+    tests = ['test_builder', 'test_genshi', 'test_genshi_builder', 'test_kid',
              'test_kid_et', 'test_et', 'test_cet', 'test_clearsilver',
              'test_django']
-
     if which:
         tests = filter(lambda n: n[5:] in which, tests)
 

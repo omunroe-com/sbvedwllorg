@@ -19,7 +19,7 @@ except ImportError:
 
 setup(
     name = 'Genshi',
-    version = '0.4',
+    version = '0.3.5',
     description = 'A toolkit for stream-based generation of output for the web',
     long_description = \
 """Genshi is a Python library that provides an integrated set of components
@@ -46,14 +46,14 @@ is heavily inspired by Kid.""",
         'Topic :: Text Processing :: Markup :: XML'
     ],
     keywords = ['python.templating.engines'],
-    packages = ['genshi', 'genshi.template'],
+    packages = ['genshi'],
     test_suite = 'genshi.tests.suite',
 
     extras_require = {'plugin': ['setuptools>=0.6a2']},
     entry_points = """
     [python.templating.engines]
-    genshi = genshi.template.plugin:MarkupTemplateEnginePlugin[plugin]
-    genshi-markup = genshi.template.plugin:MarkupTemplateEnginePlugin[plugin]
-    genshi-text = genshi.template.plugin:TextTemplateEnginePlugin[plugin]
+    genshi = genshi.plugin:MarkupTemplateEnginePlugin[plugin]
+    genshi-markup = genshi.plugin:MarkupTemplateEnginePlugin[plugin]
+    genshi-text = genshi.plugin:TextTemplateEnginePlugin[plugin]
     """,
 )
