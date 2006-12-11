@@ -25,22 +25,7 @@ from genshi.core import Attrs, QName, Stream, stripentities
 from genshi.core import DOCTYPE, START, END, START_NS, END_NS, TEXT, \
                         START_CDATA, END_CDATA, PI, COMMENT
 
-__all__ = ['ET', 'ParseError', 'XMLParser', 'XML', 'HTMLParser', 'HTML']
-
-def ET(element):
-    """Convert a given ElementTree element to a markup stream."""
-    tag_name = QName(element.tag.lstrip('{'))
-    attrs = Attrs(element.items())
-
-    yield START, (tag_name, attrs), (None, -1, -1)
-    if element.text:
-        yield TEXT, element.text, (None, -1, -1)
-    for child in element.getchildren():
-        for item in ET(child):
-            yield item
-    yield END, tag_name, (None, -1, -1)
-    if element.tail:
-        yield TEXT, element.tail, (None, -1, -1)
+__all__ = ['ParseError', 'XMLParser', 'XML', 'HTMLParser', 'HTML']
 
 
 class ParseError(Exception):
@@ -64,8 +49,8 @@ class XMLParser(object):
     >>> parser = XMLParser(StringIO('<root id="2"><child>Foo</child></root>'))
     >>> for kind, data, pos in parser:
     ...     print kind, data
-    START (QName(u'root'), Attrs([(QName(u'id'), u'2')]))
-    START (QName(u'child'), Attrs())
+    START (u'root', [(u'id', u'2')])
+    START (u'child', [])
     TEXT Foo
     END child
     END root
@@ -242,8 +227,8 @@ class HTMLParser(html.HTMLParser, object):
     >>> parser = HTMLParser(StringIO('<UL compact><LI>Foo</UL>'))
     >>> for kind, data, pos in parser:
     ...     print kind, data
-    START (QName(u'ul'), Attrs([(QName(u'compact'), u'compact')]))
-    START (QName(u'li'), Attrs())
+    START (u'ul', [(u'compact', u'compact')])
+    START (u'li', [])
     TEXT Foo
     END li
     END ul
@@ -327,9 +312,10 @@ class HTMLParser(html.HTMLParser, object):
         if tag not in self._EMPTY_ELEMS:
             while self._open_tags:
                 open_tag = self._open_tags.pop()
-                self._enqueue(END, QName(open_tag))
                 if open_tag.lower() == tag.lower():
                     break
+                self._enqueue(END, QName(open_tag))
+            self._enqueue(END, QName(tag))
 
     def handle_data(self, text):
         if not isinstance(text, unicode):
@@ -348,9 +334,8 @@ class HTMLParser(html.HTMLParser, object):
         self._enqueue(TEXT, text)
 
     def handle_pi(self, data):
-        target, data = data.split(None, 1)
-        if data.endswith('?'):
-            data = data[:-1]
+        target, data = data.split(maxsplit=1)
+        data = data.rstrip('?')
         self._enqueue(PI, (target.strip(), data.strip()))
 
     def handle_comment(self, text):

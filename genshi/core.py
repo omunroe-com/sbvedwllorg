@@ -17,17 +17,11 @@ import htmlentitydefs
 import operator
 import re
 
-__all__ = ['Stream', 'Markup', 'escape', 'unescape', 'Attrs', 'Namespace',
-           'QName']
+__all__ = ['Stream', 'Markup', 'escape', 'unescape', 'Namespace', 'QName']
 
 
 class StreamEventKind(str):
     """A kind of event on an XML stream."""
-    __slots__ = []
-    _instances = {}
-
-    def __new__(cls, val):
-        return cls._instances.setdefault(val, str.__new__(cls, val))
 
 
 class Stream(object):
@@ -214,67 +208,72 @@ def _ensure(stream):
         yield event
 
 
-class Attrs(tuple):
-    """Immutable sequence type that stores the attributes of an element.
+class Attrs(list):
+    """Sequence type that stores the attributes of an element.
     
-    Ordering of the attributes is preserved, while accessing by name is also
-    supported.
+    The order of the attributes is preserved, while accessing and manipulating
+    attributes by name is also supported.
     
     >>> attrs = Attrs([('href', '#'), ('title', 'Foo')])
     >>> attrs
-    Attrs([(QName(u'href'), '#'), (QName(u'title'), 'Foo')])
+    [(u'href', '#'), (u'title', 'Foo')]
     
     >>> 'href' in attrs
     True
     >>> 'tabindex' in attrs
     False
+    
     >>> attrs.get(u'title')
     'Foo'
-    
-    Instances may not be manipulated directly. Instead, the operators `|` and
-    `-` can be used to produce new instances that have specific attributes
-    added, replaced or removed.
-    
-    To remove an attribute, use the `-` operator. The right hand side can be
-    either a string or a set/sequence of strings, identifying the name(s) of
-    the attribute(s) to remove:
-    
-    >>> attrs - 'title'
-    Attrs([(QName(u'href'), '#')])
-    >>> attrs - ('title', 'href')
-    Attrs()
-    
-    The original instance is not modified, but the operator can of course be
-    used with an assignment:
-
+    >>> attrs.set(u'title', 'Bar')
     >>> attrs
-    Attrs([(QName(u'href'), '#'), (QName(u'title'), 'Foo')])
-    >>> attrs -= 'title'
+    [(u'href', '#'), (u'title', 'Bar')]
+    >>> attrs.remove(u'title')
     >>> attrs
-    Attrs([(QName(u'href'), '#')])
+    [(u'href', '#')]
     
-    To add a new attribute, use the `|` operator, where the right hand value
-    is a sequence of `(name, value)` tuples (which includes `Attrs` instances):
+    New attributes added using the `set()` method are appended to the end of
+    the list:
     
-    >>> attrs | [(u'title', 'Bar')]
-    Attrs([(QName(u'href'), '#'), (QName(u'title'), 'Bar')])
+    >>> attrs.set(u'accesskey', 'k')
+    >>> attrs
+    [(u'href', '#'), (u'accesskey', 'k')]
     
-    If the attributes already contain an attribute with a given name, the value
-    of that attribute is replaced:
+    An `Attrs` instance can also be initialized with keyword arguments.
     
-    >>> attrs | [(u'href', 'http://example.org/')]
-    Attrs([(QName(u'href'), 'http://example.org/')])
+    >>> attrs = Attrs(class_='bar', href='#', title='Foo')
+    >>> attrs.get('class')
+    'bar'
+    >>> attrs.get('href')
+    '#'
+    >>> attrs.get('title')
+    'Foo'
     
+    Reserved words can be used by appending a trailing underscore to the name,
+    and any other underscore is replaced by a dash:
+    
+    >>> attrs = Attrs(class_='bar', accept_charset='utf-8')
+    >>> attrs.get('class')
+    'bar'
+    >>> attrs.get('accept-charset')
+    'utf-8'
+    
+    Thus this shorthand can not be used if attribute names should contain
+    actual underscore characters.
     """
     __slots__ = []
 
-    def __new__(cls, items=()):
+    def __init__(self, attrib=None, **kwargs):
         """Create the `Attrs` instance.
         
-        If the `items` parameter is provided, it is expected to be a sequence
+        If the `attrib` parameter is provided, it is expected to be a sequence
         of `(name, value)` tuples.
         """
-        return tuple.__new__(cls, [(QName(name), val) for name, val in items])
+        if attrib is None:
+            attrib = []
+        list.__init__(self, [(QName(name), value) for name, value in attrib])
+        for name, value in kwargs.items():
+            self.set(name.rstrip('_').replace('_', '-'), value)
 
     def __contains__(self, name):
         """Return whether the list includes an attribute with the specified
@@ -284,30 +283,6 @@ class Attrs(tuple):
             if attr == name:
                 return True
 
-    def __getslice__(self, i, j):
-        return Attrs(tuple.__getslice__(self, i, j))
-
-    def __or__(self, attrs):
-        """Return a new instance that contains the attributes in `attrs` in
-        addition to any already existing attributes.
-        """
-        repl = dict([(an, av) for an, av in attrs if an in self])
-        return Attrs([(sn, repl.get(sn, sv)) for sn, sv in self] +
-                     [(an, av) for an, av in attrs if an not in self])
-
-    def __repr__(self):
-        if not self:
-            return 'Attrs()'
-        return 'Attrs([%s])' % ', '.join([repr(item) for item in self])
-
-    def __sub__(self, names):
-        """Return a new instance with all attributes with a name in `names` are
-        removed.
-        """
-        if isinstance(names, basestring):
-            names = (names,)
-        return Attrs([(name, val) for name, val in self if name not in names])
-
     def get(self, name, default=None):
         """Return the value of the attribute with the specified name, or the
         value of the `default` parameter if no such attribute is found.
@@ -316,6 +291,30 @@ class Attrs(tuple):
             if attr == name:
                 return value
         return default
+
+    def remove(self, name):
+        """Remove the attribute with the specified name.
+        
+        If no such attribute is found, this method does nothing.
+        """
+        for idx, (attr, _) in enumerate(self):
+            if attr == name:
+                del self[idx]
+                break
+
+    def set(self, name, value):
+        """Set the specified attribute to the given value.
+        
+        If an attribute with the specified name is already in the list, the
+        value of the existing entry is updated. Otherwise, a new attribute is
+        appended to the end of the list.
+        """
+        for idx, (attr, _) in enumerate(self):
+            if attr == name:
+                self[idx] = (QName(attr), value)
+                break
+        else:
+            self.append((QName(name), value))
 
     def totuple(self):
         """Return the attributes as a markup event.
@@ -400,7 +399,7 @@ class Markup(unicode):
         return Markup(num * unicode(self))
 
     def __repr__(self):
-        return '<%s %r>' % (self.__class__.__name__, unicode(self))
+        return '<%s "%s">' % (self.__class__.__name__, self)
 
     def join(self, seq, escape_quotes=True):
         return Markup(unicode(self).join([escape(item, quotes=escape_quotes)
@@ -478,7 +477,7 @@ class Namespace(object):
     that namespace:
     
     >>> html.body
-    QName(u'http://www.w3.org/1999/xhtml}body')
+    u'{http://www.w3.org/1999/xhtml}body'
     >>> html.body.localname
     u'body'
     >>> html.body.namespace
@@ -488,7 +487,7 @@ class Namespace(object):
     attribute names that are not valid Python identifiers:
     
     >>> html['body']
-    QName(u'http://www.w3.org/1999/xhtml}body')
+    u'{http://www.w3.org/1999/xhtml}body'
     
     A `Namespace` object can also be used to test whether a specific `QName`
     belongs to that namespace using the `in` operator:
@@ -503,15 +502,6 @@ class Namespace(object):
         if type(uri) is cls:
             return uri
         return object.__new__(cls, uri)
-
-    def __getnewargs__(self):
-        return (self.uri,)
-
-    def __getstate__(self):
-        return self.uri
-
-    def __setstate__(self, uri):
-        self.uri = uri
 
     def __init__(self, uri):
         self.uri = unicode(uri)
@@ -555,14 +545,14 @@ class QName(unicode):
     
     >>> qname = QName('foo')
     >>> qname
-    QName(u'foo')
+    u'foo'
     >>> qname.localname
     u'foo'
     >>> qname.namespace
     
     >>> qname = QName('http://www.w3.org/1999/xhtml}body')
     >>> qname
-    QName(u'http://www.w3.org/1999/xhtml}body')
+    u'{http://www.w3.org/1999/xhtml}body'
     >>> qname.localname
     u'body'
     >>> qname.namespace
@@ -582,9 +572,3 @@ class QName(unicode):
             self = unicode.__new__(cls, qname)
             self.namespace, self.localname = None, unicode(qname)
         return self
-
-    def __getnewargs__(self):
-        return (self.lstrip('{'),)
-
-    def __repr__(self):
-        return 'QName(%s)' % unicode.__repr__(self.lstrip('{'))

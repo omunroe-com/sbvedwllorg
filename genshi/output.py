@@ -98,7 +98,7 @@ class XMLSerializer(object):
                         ns_attrib.append((QName('xmlns'), namespace))
                 buf = ['<', tagname]
 
-                for attr, value in attrib + tuple(ns_attrib):
+                for attr, value in attrib + ns_attrib:
                     attrname = attr.localname
                     if attr.namespace:
                         prefix = ns_mapping.get(attr.namespace)
@@ -216,7 +216,7 @@ class XHTMLSerializer(XMLSerializer):
                         ns_attrib.append((QName('xmlns'), tagns))
                 buf = ['<', tagname]
 
-                for attr, value in chain(attrib, ns_attrib):
+                for attr, value in attrib + ns_attrib:
                     attrname = attr.localname
                     if attr.namespace:
                         prefix = ns_mapping.get(attr.namespace)
@@ -318,7 +318,7 @@ class HTMLSerializer(XHTMLSerializer):
         super(HTMLSerializer, self).__init__(doctype, False)
         if strip_whitespace:
             self.filters.append(WhitespaceFilter(self._PRESERVE_SPACE,
-                                                 self._NOESCAPE_ELEMS))
+                                                 self._NOESCAPE_ELEMS, True))
 
     def __call__(self, stream):
         namespace = self.NAMESPACE
@@ -456,7 +456,7 @@ class WhitespaceFilter(object):
     """A filter that removes extraneous ignorable white space from the
     stream."""
 
-    def __init__(self, preserve=None, noescape=None):
+    def __init__(self, preserve=None, noescape=None, escape_cdata=False):
         """Initialize the filter.
         
         @param preserve: a set or sequence of tag names for which white-space
@@ -473,6 +473,7 @@ class WhitespaceFilter(object):
         if noescape is None:
             noescape = []
         self.noescape = frozenset(noescape)
+        self.escape_cdata = escape_cdata
 
     def __call__(self, stream, ctxt=None, space=XML_NAMESPACE['space'],
                  trim_trailing_space=re.compile('[ \t]+(?=\n)').sub,
@@ -482,6 +483,7 @@ class WhitespaceFilter(object):
         preserve = 0
         noescape_elems = self.noescape
         noescape = False
+        escape_cdata = self.escape_cdata
 
         textbuf = []
         push_text = textbuf.append
@@ -515,10 +517,10 @@ class WhitespaceFilter(object):
                     if preserve:
                         preserve -= 1
 
-                elif kind is START_CDATA:
+                elif kind is START_CDATA and not escape_cdata:
                     noescape = True
 
-                elif kind is END_CDATA:
+                elif kind is END_CDATA and not escape_cdata:
                     noescape = False
 
                 if kind:

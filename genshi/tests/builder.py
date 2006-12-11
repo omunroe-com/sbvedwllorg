@@ -16,7 +16,7 @@ from HTMLParser import HTMLParseError
 import unittest
 
 from genshi.builder import Element, tag
-from genshi.core import Attrs, Stream
+from genshi.core import Stream
 from genshi.input import XML
 
 
@@ -25,8 +25,7 @@ class ElementFactoryTestCase(unittest.TestCase):
     def test_link(self):
         link = tag.a(href='#', title='Foo', accesskey=None)('Bar')
         bits = iter(link.generate())
-        self.assertEqual((Stream.START,
-                          ('a', Attrs([('href', "#"), ('title', "Foo")])),
+        self.assertEqual((Stream.START, ('a', [('href', "#"), ('title', "Foo")]),
                           (None, -1, -1)), bits.next())
         self.assertEqual((Stream.TEXT, u'Bar', (None, -1, -1)), bits.next())
         self.assertEqual((Stream.END, 'a', (None, -1, -1)), bits.next())
@@ -38,15 +37,14 @@ class ElementFactoryTestCase(unittest.TestCase):
         generated.
         """
         event = iter(tag.foo(id=3)).next()
-        self.assertEqual((Stream.START, ('foo', Attrs([('id', '3')])),
-                          (None, -1, -1)),
+        self.assertEqual((Stream.START, ('foo', [('id', '3')]), (None, -1, -1)),
                          event)
 
     def test_stream_as_child(self):
         xml = list(tag.span(XML('<b>Foo</b>')).generate())
         self.assertEqual(5, len(xml))
-        self.assertEqual((Stream.START, ('span', ())), xml[0][:2])
-        self.assertEqual((Stream.START, ('b', ())), xml[1][:2])
+        self.assertEqual((Stream.START, ('span', [])), xml[0][:2])
+        self.assertEqual((Stream.START, ('b', [])), xml[1][:2])
         self.assertEqual((Stream.TEXT, 'Foo'), xml[2][:2])
         self.assertEqual((Stream.END, 'b'), xml[3][:2])
         self.assertEqual((Stream.END, 'span'), xml[4][:2])

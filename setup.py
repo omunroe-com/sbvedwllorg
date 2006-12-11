@@ -12,58 +12,14 @@
 # individuals. For the exact contribution history, see the revision
 # history and logs, available at http://genshi.edgewall.org/log/.
 
-from distutils.cmd import Command
-import doctest
-from glob import glob
-import os
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
 
-
-class test_doc(Command):
-    description = 'Tests the code examples in the documentation'
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        for filename in glob('doc/*.txt'):
-            print 'testing documentation file %s' % filename
-            doctest.testfile(filename, False, optionflags=doctest.ELLIPSIS)
-
-
-class build_doc(Command):
-    description = 'Builds the documentation'
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        from docutils.core import publish_cmdline
-        conf = os.path.join('doc', 'docutils.conf')
-
-        for source in glob('doc/*.txt'):
-            dest = os.path.splitext(source)[0] + '.html'
-            if not os.path.exists(dest) or \
-                   os.path.getmtime(dest) < os.path.getmtime(source):
-                print 'building documentation file %s' % dest
-                publish_cmdline(writer_name='html',
-                                argv=['--config=%s' % conf, source, dest])
-
-
 setup(
     name = 'Genshi',
-    version = '0.4',
+    version = '0.3.6',
     description = 'A toolkit for stream-based generation of output for the web',
     long_description = \
 """Genshi is a Python library that provides an integrated set of components
@@ -90,16 +46,14 @@ is heavily inspired by Kid.""",
         'Topic :: Text Processing :: Markup :: XML'
     ],
     keywords = ['python.templating.engines'],
-    packages = ['genshi', 'genshi.template'],
+    packages = ['genshi'],
     test_suite = 'genshi.tests.suite',
 
     extras_require = {'plugin': ['setuptools>=0.6a2']},
     entry_points = """
     [python.templating.engines]
-    genshi = genshi.template.plugin:MarkupTemplateEnginePlugin[plugin]
-    genshi-markup = genshi.template.plugin:MarkupTemplateEnginePlugin[plugin]
-    genshi-text = genshi.template.plugin:TextTemplateEnginePlugin[plugin]
+    genshi = genshi.plugin:MarkupTemplateEnginePlugin[plugin]
+    genshi-markup = genshi.plugin:MarkupTemplateEnginePlugin[plugin]
+    genshi-text = genshi.plugin:TextTemplateEnginePlugin[plugin]
     """,
-
-    cmdclass={'build_doc': build_doc, 'test_doc': test_doc}
 )
