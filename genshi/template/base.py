@@ -279,9 +279,6 @@ class Template(object):
     EXPR = StreamEventKind('EXPR')
     """Stream event kind representing a Python expression."""
 
-    INCLUDE = StreamEventKind('INCLUDE')
-    """Stream event kind representing the inclusion of another template."""
-
     SUB = StreamEventKind('SUB')
     """Stream event kind representing a nested stream to which one or more
     directives should be applied.
@@ -324,8 +321,6 @@ class Template(object):
         except ParseError, e:
             raise TemplateSyntaxError(e.msg, self.filepath, e.lineno, e.offset)
         self.filters = [self._flatten, self._eval]
-        if loader:
-            self.filters.append(self._include)
 
     def __repr__(self):
         return '<%s "%s">' % (self.__class__.__name__, self.filename)
@@ -365,8 +360,6 @@ class Template(object):
                     for event in substream:
                         yield event
             else:
-                if kind is INCLUDE:
-                    data = data[0], list(self._prepare(data[1]))
                 yield kind, data, pos
 
     def generate(self, *args, **kwargs):
@@ -457,37 +450,6 @@ class Template(object):
             else:
                 yield event
 
-    def _include(self, stream, ctxt):
-        """Internal stream filter that performs inclusion of external
-        template files.
-        """
-        from genshi.template.loader import TemplateNotFound
-
-        for event in stream:
-            if event[0] is INCLUDE:
-                href, fallback = event[1]
-                if not isinstance(href, basestring):
-                    parts = []
-                    for subkind, subdata, subpos in self._eval(href, ctxt):
-                        if subkind is TEXT:
-                            parts.append(subdata)
-                    href = u''.join([x for x in parts if x is not None])
-                try:
-                    tmpl = self.loader.load(href, relative_to=event[2][0],
-                                            cls=self.__class__)
-                    for event in tmpl.generate(ctxt):
-                        yield event
-                except TemplateNotFound:
-                    if fallback is None:
-                        raise
-                    for filter_ in self.filters:
-                        fallback = filter_(iter(fallback), ctxt)
-                    for event in fallback:
-                        yield event
-            else:
-                yield event
-
 
 EXPR = Template.EXPR
-INCLUDE = Template.INCLUDE
 SUB = Template.SUB
