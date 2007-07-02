@@ -11,6 +11,12 @@ http://svn.edgewall.org/repos/genshi/tags/0.5.0/
    understand.
  * Added support for the XPath 2 `matches()` function in XPath expressions,
    which allow matching against regular expressions.
+ * Support for Python code blocks in templates can now be disabled
+   (ticket #123).
+ * Includes are now processed when the template is parsed if possible, but
+   only if the template loader is not set to do automatic reloading. Included
+   templates are basically inlined into the including template, which can
+   speed up rendering of that template a bit.
 
 
 Version 0.4.3
@@ -24,6 +30,8 @@ http://svn.edgewall.org/repos/genshi/tags/0.4.3/
    template is loaded (ticket #130). Note that the value for this option can
    not be specified as a string, only as an actual function object, which means
    it is not available for use through configuration files.
+ * The I18n filter now extracts messages from gettext functions even inside
+   ignored tags (ticket #132).
 
 
 Version 0.4.2

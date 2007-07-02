@@ -12,15 +12,16 @@
 # individuals. For the exact contribution history, see the revision
 # history and logs, available at http://genshi.edgewall.org/log/.
 
+from distutils.cmd import Command
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError
 import doctest
 from glob import glob
 import os
 try:
-    from setuptools import setup, Command, Extension, Feature
+    from setuptools import setup, Extension, Feature
 except ImportError:
-    from distutils.core import setup, Command, Extension
+    from distutils.core import setup, Extension
     Feature = None
 import sys
 

@@ -67,9 +67,10 @@ class MarkupTemplate(Template):
                   ('strip', StripDirective)]
 
     def __init__(self, source, basedir=None, filename=None, loader=None,
-                 encoding=None, lookup='lenient'):
+                 encoding=None, lookup='lenient', allow_exec=True):
         Template.__init__(self, source, basedir=basedir, filename=filename,
-                          loader=loader, encoding=encoding, lookup=lookup)
+                          loader=loader, encoding=encoding, lookup=lookup,
+                          allow_exec=allow_exec)
         # Make sure the include filter comes after the match filter
         if loader:
             self.filters.remove(self._include)
@@ -117,8 +118,9 @@ class MarkupTemplate(Template):
                     if cls is None:
                         raise BadDirectiveError(tag.localname, self.filepath,
                                                 pos[1])
-                    value = attrs.get(getattr(cls, 'ATTRIBUTE', None), '')
-                    directives.append((cls, value, ns_prefix.copy(), pos))
+                    args = dict([(name.localname, value) for name, value
+                                 in attrs if not name.namespace])
+                    directives.append((cls, args, ns_prefix.copy(), pos))
                     strip = True
 
                 new_attrs = []
@@ -185,6 +187,9 @@ class MarkupTemplate(Template):
                                               pos)]
 
             elif kind is PI and data[0] == 'python':
+                if not self.allow_exec:
+                    raise TemplateSyntaxError('Python code blocks not allowed',
+                                              self.filepath, *pos[1:])
                 try:
                     # As Expat doesn't report whitespace between the PI target
                     # and the data, we have to jump through some hoops here to

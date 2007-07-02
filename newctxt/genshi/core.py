@@ -50,11 +50,6 @@ class Stream(object):
     method will return an iterator over generated strings, while `render()`
     returns the complete generated text at once. Both accept various parameters
     that impact the way the stream is serialized.
-    
-    Also provided are ways to serialize the stream to text. The `serialize()`
-    method will return an iterator over generated strings, while `render()`
-    returns the complete generated text at once. Both accept various parameters
-    that impact the way the stream is serialized.
     """
     __slots__ = ['events']
 
