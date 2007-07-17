@@ -15,11 +15,10 @@ import doctest
 import unittest
 
 def suite():
-    from genshi.filters.tests import html, i18n, transform
+    from genshi.filters.tests import html, i18n
     suite = unittest.TestSuite()
     suite.addTest(html.suite())
     suite.addTest(i18n.suite())
-    suite.addTest(transform.suite())
     return suite
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@ from StringIO import StringIO
 import sys
 import timeit
 
-__all__ = ['clearsilver', 'mako', 'django', 'kid', 'genshi', 'simpletal']
+__all__ = ['clearsilver', 'myghty', 'django', 'kid', 'genshi', 'cheetah']
 
 def genshi(dirname, verbose=False):
     from genshi.template import TemplateLoader
@@ -24,14 +24,19 @@ def genshi(dirname, verbose=False):
         print render()
     return render
 
-def mako(dirname, verbose=False):
-    from mako.lookup import TemplateLookup
-    lookup = TemplateLookup(directories=[dirname], filesystem_checks=False)
-    template = lookup.get_template('template.html')
+def myghty(dirname, verbose=False):
+    try:
+        from myghty import interp
+    except ImportError:
+        print>>sys.stderr, 'Mighty not installed, skipping'
+        return lambda: None
+    interpreter = interp.Interpreter(component_root=dirname)
     def render():
         data = dict(title='Just a test', user='joe',
-                    list_items=['Number %d' % num for num in range(1, 15)])
-        return template.render(**data)
+                    items=['Number %d' % num for num in range(1, 15)])
+        buffer = StringIO()
+        interpreter.execute("template.myt", request_args=data, out_buffer=buffer)
+        return buffer.getvalue()
     if verbose:
         print render()
     return render
@@ -181,6 +186,6 @@ if __name__ == '__main__':
         stats = hotshot.stats.load("template.prof")
         stats.strip_dirs()
         stats.sort_stats('time', 'calls')
-        stats.print_stats(.05)
+        stats.print_stats()
     else:
         run(engines, verbose=verbose)

@@ -20,7 +20,6 @@ import new
 try:
     set
 except NameError:
-    from sets import ImmutableSet as frozenset
     from sets import Set as set
 import sys
 
@@ -35,7 +34,7 @@ __docformat__ = 'restructuredtext en'
 
 class Code(object):
     """Abstract base class for the `Expression` and `Suite` classes."""
-    __slots__ = ['source', 'code', 'ast', '_globals']
+    __slots__ = ['source', 'code', '_globals']
 
     def __init__(self, source, filename=None, lineno=-1, lookup='lenient'):
         """Create the code object, either from a string, or from an AST node.
@@ -60,7 +59,6 @@ class Code(object):
             else:
                 node = ast.Module(None, source)
 
-        self.ast = node
         self.code = _compile(node, self.source, mode=self.mode,
                              filename=filename, lineno=lineno)
         if lookup is None:
@@ -393,7 +391,6 @@ def _compile(node, source=None, mode='eval', filename=None, lineno=-1):
 
 BUILTINS = __builtin__.__dict__.copy()
 BUILTINS.update({'Markup': Markup, 'Undefined': Undefined})
-CONSTANTS = frozenset(['False', 'True', 'None', 'NotImplemented', 'Ellipsis'])
 
 
 class ASTTransformer(object):
@@ -412,223 +409,244 @@ class ASTTransformer(object):
                           self._visitDefault)
         return visitor(node)
 
-    def _clone(self, node, *args):
-        lineno = getattr(node, 'lineno', None)
-        node = node.__class__(*args)
-        if lineno is not None:
-            node.lineno = lineno
-        if isinstance(node, (ast.Class, ast.Function, ast.GenExpr, ast.Lambda)):
-            node.filename = '<string>' # workaround for bug in pycodegen
-        return node
-
     def _visitDefault(self, node):
         return node
 
     def visitExpression(self, node):
-        return self._clone(node, self.visit(node.node))
+        node.node = self.visit(node.node)
+        return node
 
     def visitModule(self, node):
-        return self._clone(node, node.doc, self.visit(node.node))
+        node.node = self.visit(node.node)
+        return node
 
     def visitStmt(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes])
+        node.nodes = [self.visit(x) for x in node.nodes]
+        return node
 
     # Classes, Functions & Accessors
 
     def visitCallFunc(self, node):
-        return self._clone(node, self.visit(node.node),
-            [self.visit(x) for x in node.args],
-            node.star_args and self.visit(node.star_args) or None,
-            node.dstar_args and self.visit(node.dstar_args) or None
-        )
+        node.node = self.visit(node.node)
+        node.args = [self.visit(x) for x in node.args]
+        if node.star_args:
+            node.star_args = self.visit(node.star_args)
+        if node.dstar_args:
+            node.dstar_args = self.visit(node.dstar_args)
+        return node
 
     def visitClass(self, node):
-        return self._clone(node, node.name, [self.visit(x) for x in node.bases],
-            node.doc, self.visit(node.code)
-        )
+        node.bases = [self.visit(x) for x in node.bases]
+        node.code = self.visit(node.code)
+        node.filename = '<string>' # workaround for bug in pycodegen
+        return node
 
     def visitFunction(self, node):
-        args = []
         if hasattr(node, 'decorators'):
-            args.append(self.visit(node.decorators))
-        return self._clone(node, *args + [
-            node.name,
-            node.argnames,
-            [self.visit(x) for x in node.defaults],
-            node.flags,
-            node.doc,
-            self.visit(node.code)
-        ])
+            node.decorators = self.visit(node.decorators)
+        node.defaults = [self.visit(x) for x in node.defaults]
+        node.code = self.visit(node.code)
+        node.filename = '<string>' # workaround for bug in pycodegen
+        return node
 
     def visitGetattr(self, node):
-        return self._clone(node, self.visit(node.expr), node.attrname)
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitLambda(self, node):
-        node = self._clone(node, node.argnames,
-            [self.visit(x) for x in node.defaults], node.flags,
-            self.visit(node.code)
-        )
+        node.code = self.visit(node.code)
+        node.filename = '<string>' # workaround for bug in pycodegen
         return node
 
     def visitSubscript(self, node):
-        return self._clone(node, self.visit(node.expr), node.flags,
-            [self.visit(x) for x in node.subs]
-        )
+        node.expr = self.visit(node.expr)
+        node.subs = [self.visit(x) for x in node.subs]
+        return node
 
     # Statements
 
     def visitAssert(self, node):
-        return self._clone(node, self.visit(node.test), self.visit(node.fail))
+        node.test = self.visit(node.test)
+        node.fail = self.visit(node.fail)
+        return node
 
     def visitAssign(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes],
-            self.visit(node.expr)
-        )
+        node.nodes = [self.visit(x) for x in node.nodes]
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitAssAttr(self, node):
-        return self._clone(node, self.visit(node.expr), node.attrname,
-            node.flags
-        )
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitAugAssign(self, node):
-        return self._clone(node, self.visit(node.node), node.op,
-            self.visit(node.expr)
-        )
+        node.node = self.visit(node.node)
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitDecorators(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes])
+        node.nodes = [self.visit(x) for x in node.nodes]
+        return node
 
     def visitExec(self, node):
-        return self._clone(node, self.visit(node.expr), self.visit(node.locals),
-            self.visit(node.globals)
-        )
+        node.expr = self.visit(node.expr)
+        node.locals = self.visit(node.locals)
+        node.globals = self.visit(node.globals)
+        return node
 
     def visitFor(self, node):
-        return self._clone(node, self.visit(node.assign), self.visit(node.list),
-            self.visit(node.body), self.visit(node.else_)
-        )
+        node.assign = self.visit(node.assign)
+        node.list = self.visit(node.list)
+        node.body = self.visit(node.body)
+        node.else_ = self.visit(node.else_)
+        return node
 
     def visitIf(self, node):
-        return self._clone(node, [self.visit(x) for x in node.tests],
-            self.visit(node.else_)
-        )
+        node.tests = [self.visit(x) for x in node.tests]
+        node.else_ = self.visit(node.else_)
+        return node
 
     def _visitPrint(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes],
-            self.visit(node.dest)
-        )
+        node.nodes = [self.visit(x) for x in node.nodes]
+        node.dest = self.visit(node.dest)
+        return node
     visitPrint = visitPrintnl = _visitPrint
 
     def visitRaise(self, node):
-        return self._clone(node, self.visit(node.expr1), self.visit(node.expr2),
-            self.visit(node.expr3)
-        )
+        node.expr1 = self.visit(node.expr1)
+        node.expr2 = self.visit(node.expr2)
+        node.expr3 = self.visit(node.expr3)
+        return node
 
     def visitReturn(self, node):
-        return self._clone(node, self.visit(node.value))
+        node.value = self.visit(node.value)
+        return node
 
     def visitTryExcept(self, node):
-        return self._clone(node, self.visit(node.body), self.visit(node.handlers),
-            self.visit(node.else_)
-        )
+        node.body = self.visit(node.body)
+        node.handlers = self.visit(node.handlers)
+        node.else_ = self.visit(node.else_)
+        return node
 
     def visitTryFinally(self, node):
-        return self._clone(node, self.visit(node.body), self.visit(node.final))
+        node.body = self.visit(node.body)
+        node.final = self.visit(node.final)
+        return node
 
     def visitWhile(self, node):
-        return self._clone(node, self.visit(node.test), self.visit(node.body),
-            self.visit(node.else_)
-        )
+        node.test = self.visit(node.test)
+        node.body = self.visit(node.body)
+        node.else_ = self.visit(node.else_)
+        return node
 
     def visitWith(self, node):
-        return self._clone(node, self.visit(node.expr),
-            [self.visit(x) for x in node.vars], self.visit(node.body)
-        )
+        node.expr = self.visit(node.expr)
+        node.vars = [self.visit(x) for x in node.vars]
+        node.body = self.visit(node.body)
+        return node
 
     def visitYield(self, node):
-        return self._clone(node, self.visit(node.value))
+        node.value = self.visit(node.value)
+        return node
 
     # Operators
 
     def _visitBoolOp(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes])
+        node.nodes = [self.visit(x) for x in node.nodes]
+        return node
     visitAnd = visitOr = visitBitand = visitBitor = visitBitxor = _visitBoolOp
     visitAssTuple = visitAssList = _visitBoolOp
 
     def _visitBinOp(self, node):
-        return self._clone(node,
-            (self.visit(node.left), self.visit(node.right))
-        )
+        node.left = self.visit(node.left)
+        node.right = self.visit(node.right)
+        return node
     visitAdd = visitSub = _visitBinOp
     visitDiv = visitFloorDiv = visitMod = visitMul = visitPower = _visitBinOp
     visitLeftShift = visitRightShift = _visitBinOp
 
     def visitCompare(self, node):
-        return self._clone(node, self.visit(node.expr),
-            [(op, self.visit(n)) for op, n in  node.ops]
-        )
+        node.expr = self.visit(node.expr)
+        node.ops = [(op, self.visit(n)) for op, n in  node.ops]
+        return node
 
     def _visitUnaryOp(self, node):
-        return self._clone(node, self.visit(node.expr))
+        node.expr = self.visit(node.expr)
+        return node
     visitUnaryAdd = visitUnarySub = visitNot = visitInvert = _visitUnaryOp
     visitBackquote = visitDiscard = _visitUnaryOp
 
     def visitIfExp(self, node):
-        return self._clone(node, self.visit(node.test), self.visit(node.then),
-            self.visit(node.else_)
-        )
+        node.test = self.visit(node.test)
+        node.then = self.visit(node.then)
+        node.else_ = self.visit(node.else_)
+        return node
 
     # Identifiers, Literals and Comprehensions
 
     def visitDict(self, node):
-        return self._clone(node, 
-            [(self.visit(k), self.visit(v)) for k, v in node.items]
-        )
+        node.items = [(self.visit(k),
+                       self.visit(v)) for k, v in node.items]
+        return node
 
     def visitGenExpr(self, node):
-        return self._clone(node, self.visit(node.code))
+        node.code = self.visit(node.code)
+        node.filename = '<string>' # workaround for bug in pycodegen
+        return node
 
     def visitGenExprFor(self, node):
-        return self._clone(node, self.visit(node.assign), self.visit(node.iter),
-            [self.visit(x) for x in node.ifs]
-        )
+        node.assign = self.visit(node.assign)
+        node.iter = self.visit(node.iter)
+        node.ifs = [self.visit(x) for x in node.ifs]
+        return node
 
     def visitGenExprIf(self, node):
-        return self._clone(node, self.visit(node.test))
+        node.test = self.visit(node.test)
+        return node
 
     def visitGenExprInner(self, node):
-        quals = [self.visit(x) for x in node.quals]
-        return self._clone(node, self.visit(node.expr), quals)
+        node.quals = [self.visit(x) for x in node.quals]
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitKeyword(self, node):
-        return self._clone(node, node.name, self.visit(node.expr))
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitList(self, node):
-        return self._clone(node, [self.visit(n) for n in node.nodes])
+        node.nodes = [self.visit(n) for n in node.nodes]
+        return node
 
     def visitListComp(self, node):
-        quals = [self.visit(x) for x in node.quals]
-        return self._clone(node, self.visit(node.expr), quals)
+        node.quals = [self.visit(x) for x in node.quals]
+        node.expr = self.visit(node.expr)
+        return node
 
     def visitListCompFor(self, node):
-        return self._clone(node, self.visit(node.assign), self.visit(node.list),
-            [self.visit(x) for x in node.ifs]
-        )
+        node.assign = self.visit(node.assign)
+        node.list = self.visit(node.list)
+        node.ifs = [self.visit(x) for x in node.ifs]
+        return node
 
     def visitListCompIf(self, node):
-        return self._clone(node, self.visit(node.test))
+        node.test = self.visit(node.test)
+        return node
 
     def visitSlice(self, node):
-        return self._clone(node, self.visit(node.expr), node.flags,
-            node.lower and self.visit(node.lower) or None,
-            node.upper and self.visit(node.upper) or None
-        )
+        node.expr = self.visit(node.expr)
+        if node.lower is not None:
+            node.lower = self.visit(node.lower)
+        if node.upper is not None:
+            node.upper = self.visit(node.upper)
+        return node
 
     def visitSliceobj(self, node):
-        return self._clone(node, [self.visit(x) for x in node.nodes])
+        node.nodes = [self.visit(x) for x in node.nodes]
+        return node
 
     def visitTuple(self, node):
-        return self._clone(node, [self.visit(n) for n in node.nodes])
+        node.nodes = [self.visit(n) for n in node.nodes]
+        return node
 
 
 class TemplateASTTransformer(ASTTransformer):
@@ -637,7 +655,7 @@ class TemplateASTTransformer(ASTTransformer):
     """
 
     def __init__(self):
-        self.locals = [CONSTANTS, set()]
+        self.locals = []
 
     def visitConst(self, node):
         if isinstance(node.value, str):
@@ -669,45 +687,39 @@ class TemplateASTTransformer(ASTTransformer):
 
     def visitClass(self, node):
         self.locals.append(set())
-        try:
-            return ASTTransformer.visitClass(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitClass(self, node)
+        self.locals.pop()
+        return node
 
     def visitFor(self, node):
         self.locals.append(set())
-        try:
-            return ASTTransformer.visitFor(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitFor(self, node)
+        self.locals.pop()
+        return node
 
     def visitFunction(self, node):
         self.locals.append(set(node.argnames))
-        try:
-            return ASTTransformer.visitFunction(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitFunction(self, node)
+        self.locals.pop()
+        return node
 
     def visitGenExpr(self, node):
         self.locals.append(set())
-        try:
-            return ASTTransformer.visitGenExpr(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitGenExpr(self, node)
+        self.locals.pop()
+        return node
 
     def visitLambda(self, node):
         self.locals.append(set(flatten(node.argnames)))
-        try:
-            return ASTTransformer.visitLambda(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitLambda(self, node)
+        self.locals.pop()
+        return node
 
     def visitListComp(self, node):
         self.locals.append(set())
-        try:
-            return ASTTransformer.visitListComp(self, node)
-        finally:
-            self.locals.pop()
+        node = ASTTransformer.visitListComp(self, node)
+        self.locals.pop()
+        return node
 
     def visitName(self, node):
         # If the name refers to a local inside a lambda, list comprehension, or
