@@ -328,11 +328,6 @@ class PathTestCase(unittest.TestCase):
         path = Path('*[contains(name(), "oo")]')
         self.assertEqual('<foo>bar</foo>', path.select(xml).render())
 
-    def test_predicate_matches_function(self):
-        xml = XML('<root><foo>bar</foo><bar>foo</bar></root>')
-        path = Path('*[matches(name(), "foo|bar")]')
-        self.assertEqual('<foo>bar</foo><bar>foo</bar>', path.select(xml).render())
-
     def test_predicate_false_function(self):
         xml = XML('<root><foo>bar</foo></root>')
         path = Path('*[false()]')

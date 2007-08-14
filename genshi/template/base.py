@@ -129,7 +129,6 @@ class Context(object):
         self.pop = self.frames.popleft
         self.push = self.frames.appendleft
         self._match_templates = []
-        self._choice_stack = []
 
         # Helper functions for use in expressions
         def defined(name):
@@ -152,7 +151,6 @@ class Context(object):
         :param key: the name of the variable
         """
         return self._find(key)[1] is not None
-    has_key = __contains__
 
     def __delitem__(self, key):
         """Remove a variable from all scopes.
@@ -281,16 +279,13 @@ class Template(object):
     EXPR = StreamEventKind('EXPR')
     """Stream event kind representing a Python expression."""
 
-    INCLUDE = StreamEventKind('INCLUDE')
-    """Stream event kind representing the inclusion of another template."""
-
     SUB = StreamEventKind('SUB')
     """Stream event kind representing a nested stream to which one or more
     directives should be applied.
     """
 
     def __init__(self, source, basedir=None, filename=None, loader=None,
-                 encoding=None, lookup='lenient', allow_exec=True):
+                 encoding=None, lookup='lenient'):
         """Initialize a template from either a string, a file-like object, or
         an already parsed markup stream.
         
@@ -307,10 +302,6 @@ class Template(object):
         :param encoding: the encoding of the `source`
         :param lookup: the variable lookup mechanism; either "lenient" (the
                        default), "strict", or a custom lookup class
-        :param allow_exec: whether Python code blocks in templates should be
-                           allowed
-        
-        :note: Changed in 0.5: Added the `allow_exec` argument
         """
         self.basedir = basedir
         self.filename = filename
@@ -320,7 +311,6 @@ class Template(object):
             self.filepath = filename
         self.loader = loader
         self.lookup = lookup
-        self.allow_exec = allow_exec
 
         if isinstance(source, basestring):
             source = StringIO(source)
@@ -331,8 +321,6 @@ class Template(object):
         except ParseError, e:
             raise TemplateSyntaxError(e.msg, self.filepath, e.lineno, e.offset)
         self.filters = [self._flatten, self._eval]
-        if loader:
-            self.filters.append(self._include)
 
     def __repr__(self):
         return '<%s "%s">' % (self.__class__.__name__, self.filename)
@@ -356,8 +344,6 @@ class Template(object):
         
         :param stream: the event stream of the template
         """
-        from genshi.template.loader import TemplateNotFound
-
         for kind, data, pos in stream:
             if kind is SUB:
                 directives = []
@@ -374,28 +360,6 @@ class Template(object):
                     for event in substream:
                         yield event
             else:
-                if kind is INCLUDE:
-                    href, fallback = data
-                    if isinstance(href, basestring) and \
-                            not getattr(self.loader, 'auto_reload', True):
-                        # If the path to the included template is static, and
-                        # auto-reloading is disabled on the template loader,
-                        # the template is inlined into the stream
-                        try:
-                            tmpl = self.loader.load(href, relative_to=pos[0],
-                                                    cls=self.__class__)
-                            for event in tmpl.stream:
-                                yield event
-                        except TemplateNotFound:
-                            if fallback is None:
-                                raise
-                            for event in self._prepare(fallback):
-                                yield event
-                        continue
-                    elif fallback:
-                        # Otherwise the include is performed at run time
-                        data = href, list(self._prepare(fallback))
-
                 yield kind, data, pos
 
     def generate(self, *args, **kwargs):
@@ -486,37 +450,6 @@ class Template(object):
             else:
                 yield event
 
-    def _include(self, stream, ctxt):
-        """Internal stream filter that performs inclusion of external
-        template files.
-        """
-        from genshi.template.loader import TemplateNotFound
-
-        for event in stream:
-            if event[0] is INCLUDE:
-                href, fallback = event[1]
-                if not isinstance(href, basestring):
-                    parts = []
-                    for subkind, subdata, subpos in self._eval(href, ctxt):
-                        if subkind is TEXT:
-                            parts.append(subdata)
-                    href = u''.join([x for x in parts if x is not None])
-                try:
-                    tmpl = self.loader.load(href, relative_to=event[2][0],
-                                            cls=self.__class__)
-                    for event in tmpl.generate(ctxt):
-                        yield event
-                except TemplateNotFound:
-                    if fallback is None:
-                        raise
-                    for filter_ in self.filters:
-                        fallback = filter_(iter(fallback), ctxt)
-                    for event in fallback:
-                        yield event
-            else:
-                yield event
-
 
 EXPR = Template.EXPR
-INCLUDE = Template.INCLUDE
 SUB = Template.SUB

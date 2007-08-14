@@ -69,9 +69,7 @@ class HTMLFormFiller(object):
         """
         in_form = in_select = in_option = in_textarea = False
         select_value = option_value = textarea_value = None
-        option_start = None
-        option_text = []
-        no_option_value = False
+        option_start = option_text = None
 
         for kind, data, pos in stream:
 
@@ -96,13 +94,13 @@ class HTMLFormFiller(object):
                                 checked = False
                                 if isinstance(value, (list, tuple)):
                                     if declval:
-                                        checked = declval in [unicode(v) for v
+                                        checked = declval in [str(v) for v
                                                               in value]
                                     else:
                                         checked = bool(filter(None, value))
                                 else:
                                     if declval:
-                                        checked = declval == unicode(value)
+                                        checked = declval == str(value)
                                     elif type == 'checkbox':
                                         checked = bool(value)
                                 if checked:
@@ -132,18 +130,15 @@ class HTMLFormFiller(object):
                     elif in_select and tagname == 'option':
                         option_start = kind, data, pos
                         option_value = attrs.get('value')
-                        if option_value is None:
-                            no_option_value = True
-                            option_value = ''
                         in_option = True
                         continue
                 yield kind, (tag, attrs), pos
 
             elif in_form and kind is TEXT:
                 if in_select and in_option:
-                    if no_option_value:
-                        option_value += data
-                    option_text.append((kind, data, pos))
+                    if option_value is None:
+                        option_value = data
+                    option_text = kind, data, pos
                     continue
                 elif in_textarea:
                     continue
@@ -158,10 +153,10 @@ class HTMLFormFiller(object):
                     select_value = None
                 elif in_select and tagname == 'option':
                     if isinstance(select_value, (tuple, list)):
-                        selected = option_value in [unicode(v) for v
+                        selected = option_value in [str(v) for v
                                                     in select_value]
                     else:
-                        selected = option_value == unicode(select_value)
+                        selected = option_value == str(select_value)
                     okind, (tag, attrs), opos = option_start
                     if selected:
                         attrs |= [(QName('selected'), 'selected')]
@@ -169,12 +164,9 @@ class HTMLFormFiller(object):
                         attrs -= 'selected'
                     yield okind, (tag, attrs), opos
                     if option_text:
-                        for event in option_text:
-                            yield event
+                        yield option_text
                     in_option = False
-                    no_option_value = False
-                    option_start = option_value = None
-                    option_text = []
+                    option_start = option_text = option_value = None
                 elif tagname == 'textarea':
                     if textarea_value:
                         yield TEXT, unicode(textarea_value), pos
@@ -329,7 +321,6 @@ class HTMLSanitizer(object):
         :param uri: the URI to check
         :return: `True` if the URI can be considered safe, `False` otherwise
         :rtype: `bool`
-        :since: version 0.4.3
         """
         if ':' not in uri:
             return True # This is a relative URI
@@ -363,7 +354,6 @@ class HTMLSanitizer(object):
                      contain any character or numeric references
         :return: a list of declarations that are considered safe
         :rtype: `list`
-        :since: version 0.4.3
         """
         decls = []
         text = self._strip_css_comments(self._replace_unicode_escapes(text))
