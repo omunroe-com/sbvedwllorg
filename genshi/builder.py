@@ -68,6 +68,11 @@ returns an object of type `Fragment`:
 Hello, <em>world</em>!
 """
 
+try:
+    set
+except NameError:
+    from sets import Set as set
+
 from genshi.core import Attrs, Markup, Namespace, QName, Stream, \
                         START, END, TEXT
 

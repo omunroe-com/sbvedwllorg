@@ -16,6 +16,10 @@ streams.
 """
 
 from itertools import chain
+try:
+    frozenset
+except NameError:
+    from sets import ImmutableSet as frozenset
 import re
 
 from genshi.core import escape, Attrs, Markup, Namespace, QName, StreamEventKind

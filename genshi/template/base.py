@@ -30,6 +30,11 @@ __all__ = ['Context', 'Template', 'TemplateError', 'TemplateRuntimeError',
            'TemplateSyntaxError', 'BadDirectiveError']
 __docformat__ = 'restructuredtext en'
 
+if sys.version_info < (2, 4):
+    _ctxt2dict = lambda ctxt: ctxt.frames[0]
+else:
+    _ctxt2dict = lambda ctxt: ctxt
+
 
 class TemplateError(Exception):
     """Base exception class for errors related to template processing."""
@@ -294,7 +299,7 @@ def _exec_suite(suite, ctxt, **vars):
     if vars:
         ctxt.push(vars)
         ctxt.push({})
-    suite.execute(ctxt)
+    suite.execute(_ctxt2dict(ctxt))
     if vars:
         top = ctxt.pop()
         ctxt.pop()

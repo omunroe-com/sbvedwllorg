@@ -17,6 +17,10 @@
 """
 
 from compiler import ast
+try:
+    frozenset
+except NameError:
+    from sets import ImmutableSet as frozenset
 from gettext import gettext
 import re
 

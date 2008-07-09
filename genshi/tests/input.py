@@ -28,7 +28,8 @@ class XMLParserTestCase(unittest.TestCase):
         kind, data, pos = events[1]
         self.assertEqual(Stream.TEXT, kind)
         self.assertEqual(u'foo bar', data)
-        self.assertEqual((None, 1, 6), pos)
+        if sys.version_info[:2] >= (2, 4):
+            self.assertEqual((None, 1, 6), pos)
 
     def test_text_node_pos_multi_line(self):
         text = '''<elem>foo
@@ -37,7 +38,8 @@ bar</elem>'''
         kind, data, pos = events[1]
         self.assertEqual(Stream.TEXT, kind)
         self.assertEqual(u'foo\nbar', data)
-        self.assertEqual((None, 1, -1), pos)
+        if sys.version_info[:2] >= (2, 4):
+            self.assertEqual((None, 1, -1), pos)
 
     def test_element_attribute_order(self):
         text = '<elem title="baz" id="foo" class="bar" />'
@@ -121,7 +123,8 @@ class HTMLParserTestCase(unittest.TestCase):
         kind, data, pos = events[1]
         self.assertEqual(Stream.TEXT, kind)
         self.assertEqual(u'foo bar', data)
-        self.assertEqual((None, 1, 6), pos)
+        if sys.version_info[:2] >= (2, 4):
+            self.assertEqual((None, 1, 6), pos)
 
     def test_text_node_pos_multi_line(self):
         text = '''<elem>foo
@@ -130,7 +133,8 @@ bar</elem>'''
         kind, data, pos = events[1]
         self.assertEqual(Stream.TEXT, kind)
         self.assertEqual(u'foo\nbar', data)
-        self.assertEqual((None, 1, 6), pos)
+        if sys.version_info[:2] >= (2, 4):
+            self.assertEqual((None, 1, 6), pos)
 
     def test_input_encoding_text(self):
         text = u'<div>\xf6</div>'.encode('iso-8859-1')

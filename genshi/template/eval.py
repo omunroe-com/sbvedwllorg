@@ -17,6 +17,11 @@ import __builtin__
 from compiler import ast, parse
 from compiler.pycodegen import ExpressionCodeGenerator, ModuleCodeGenerator
 import new
+try:
+    set
+except NameError:
+    from sets import ImmutableSet as frozenset
+    from sets import Set as set
 from textwrap import dedent
 
 from genshi.core import Markup
@@ -35,6 +40,8 @@ try:
     exec 'from sys import *' in {}, _FakeMapping()
 except SystemError:
     has_star_import_bug = True
+except TypeError:
+    pass # Python 2.3
 del _FakeMapping
 
 def _star_import_patch(mapping, modname):
@@ -477,8 +484,8 @@ class ASTTransformer(object):
         node = node.__class__(*args)
         if lineno is not None:
             node.lineno = lineno
-        if isinstance(node, (ast.Class, ast.Function, ast.Lambda,
-                             ast.GenExpr)):
+        if isinstance(node, (ast.Class, ast.Function, ast.Lambda)) or \
+                hasattr(ast, 'GenExpr') and isinstance(node, ast.GenExpr):
             node.filename = '<string>' # workaround for bug in pycodegen
         return node
 
@@ -513,10 +520,13 @@ class ASTTransformer(object):
             # This is a Python 2.4 bug. Only if we have a broken Python
             # version we have to apply the hack
             return node
-        return ast.Discard(ast.CallFunc(
+        new_node = ast.Discard(ast.CallFunc(
             ast.Name('_star_import_patch'),
             [ast.Name('__data__'), ast.Const(node.modname)], None, None
-        ), lineno=node.lineno)
+        ))
+        if hasattr(node, 'lineno'): # No lineno in Python 2.3
+            new_node.lineno = node.lineno
+        return new_node
 
     def visitFunction(self, node):
         args = []

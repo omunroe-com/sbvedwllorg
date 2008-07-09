@@ -81,7 +81,8 @@ class MarkupTemplateTestCase(unittest.TestCase):
             tmpl = MarkupTemplate(xml, filename='test.html')
         except BadDirectiveError, e:
             self.assertEqual('test.html', e.filename)
-            self.assertEqual(1, e.lineno)
+            if sys.version_info[:2] >= (2, 4):
+                self.assertEqual(1, e.lineno)
 
     def test_directive_value_syntax_error(self):
         xml = """<p xmlns:py="http://genshi.edgewall.org/" py:if="bar'" />"""
@@ -90,7 +91,8 @@ class MarkupTemplateTestCase(unittest.TestCase):
             self.fail('Expected SyntaxError')
         except TemplateSyntaxError, e:
             self.assertEqual('test.html', e.filename)
-            self.assertEqual(1, e.lineno)
+            if sys.version_info[:2] >= (2, 4):
+                self.assertEqual(1, e.lineno)
 
     def test_expression_syntax_error(self):
         xml = """<p>
@@ -101,7 +103,8 @@ class MarkupTemplateTestCase(unittest.TestCase):
             self.fail('Expected SyntaxError')
         except TemplateSyntaxError, e:
             self.assertEqual('test.html', e.filename)
-            self.assertEqual(2, e.lineno)
+            if sys.version_info[:2] >= (2, 4):
+                self.assertEqual(2, e.lineno)
 
     def test_expression_syntax_error_multi_line(self):
         xml = """<p><em></em>
@@ -114,7 +117,8 @@ class MarkupTemplateTestCase(unittest.TestCase):
             self.fail('Expected SyntaxError')
         except TemplateSyntaxError, e:
             self.assertEqual('test.html', e.filename)
-            self.assertEqual(3, e.lineno)
+            if sys.version_info[:2] >= (2, 4):
+                self.assertEqual(3, e.lineno)
 
     def test_markup_noescape(self):
         """

@@ -15,6 +15,11 @@
 
 import htmlentitydefs
 import re
+try:
+    set
+except NameError:
+    from sets import ImmutableSet as frozenset
+    from sets import Set as set
 
 __docformat__ = 'restructuredtext en'
 
@@ -198,7 +203,7 @@ def stripentities(text, keepxmlentities=False):
     
     If the `keepxmlentities` parameter is provided and is a truth value, the
     core XML entities (&amp;, &apos;, &gt;, &lt; and &quot;) are left intact.
-    
+
     >>> stripentities('1 &lt; 2 &hellip;', keepxmlentities=True)
     u'1 &lt; 2 \u2026'
     """
