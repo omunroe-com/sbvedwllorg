@@ -1,9 +1,3 @@
-Version 0.8
-http://svn.edgewall.org/repos/genshi/tags/0.8.0/
-(???, from branches/stable/0.7.x)
-
- * ???
-
 Version 0.7
 http://svn.edgewall.org/repos/genshi/tags/0.7.0/
 (Jan 27 2013, from branches/stable/0.7.x)
@@ -19,7 +13,7 @@ http://svn.edgewall.org/repos/genshi/tags/0.7.0/
 
 Version 0.6.1
 http://svn.edgewall.org/repos/genshi/tags/0.6.1/
-(Jan 27 2012, from branches/stable/0.6.x)
+(Jan 27 2013, from branches/stable/0.6.x)
 
  * Security fix to enhance sanitizing of CSS in style attributes. Genshi's
    `HTMLSanitizer` disallows style attributes by default (this remains
