@@ -14,13 +14,13 @@
 from datetime import datetime
 import doctest
 from gettext import NullTranslations
+from StringIO import StringIO
 import unittest
 
 from genshi.core import Attrs
 from genshi.template import MarkupTemplate, Context
 from genshi.filters.i18n import Translator, extract
 from genshi.input import HTML
-from genshi.compat import IS_PYTHON2, StringIO
 
 
 class DummyTranslations(NullTranslations):
@@ -39,31 +39,17 @@ class DummyTranslations(NullTranslations):
     def _domain_call(self, func, domain, *args, **kwargs):
         return getattr(self._domains.get(domain, self), func)(*args, **kwargs)
 
-    if IS_PYTHON2:
-        def ugettext(self, message):
-            missing = object()
-            tmsg = self._catalog.get(message, missing)
-            if tmsg is missing:
-                if self._fallback:
-                    return self._fallback.ugettext(message)
-                return unicode(message)
-            return tmsg
-    else:
-        def gettext(self, message):
-            missing = object()
-            tmsg = self._catalog.get(message, missing)
-            if tmsg is missing:
-                if self._fallback:
-                    return self._fallback.gettext(message)
-                return unicode(message)
-            return tmsg
+    def ugettext(self, message):
+        missing = object()
+        tmsg = self._catalog.get(message, missing)
+        if tmsg is missing:
+            if self._fallback:
+                return self._fallback.ugettext(message)
+            return unicode(message)
+        return tmsg
 
-    if IS_PYTHON2:
-        def dugettext(self, domain, message):
-            return self._domain_call('ugettext', domain, message)
-    else:
-        def dgettext(self, domain, message):
-            return self._domain_call('gettext', domain, message)
+    def dugettext(self, domain, message):
+        return self._domain_call('ugettext', domain, message)
 
     def ungettext(self, msgid1, msgid2, n):
         try:
@@ -76,16 +62,8 @@ class DummyTranslations(NullTranslations):
             else:
                 return msgid2
 
-    if not IS_PYTHON2:
-        ngettext = ungettext
-        del ungettext
-
-    if IS_PYTHON2:
-        def dungettext(self, domain, singular, plural, numeral):
-            return self._domain_call('ungettext', domain, singular, plural, numeral)
-    else:
-        def dngettext(self, domain, singular, plural, numeral):
-            return self._domain_call('ngettext', domain, singular, plural, numeral)
+    def dungettext(self, domain, singular, plural, numeral):
+        return self._domain_call('ungettext', domain, singular, plural, numeral)
 
 
 class TranslatorTestCase(unittest.TestCase):
@@ -94,7 +72,7 @@ class TranslatorTestCase(unittest.TestCase):
         """
         Verify that translated attributes end up in a proper `Attrs` instance.
         """
-        html = HTML(u"""<html>
+        html = HTML("""<html>
           <span title="Foo"></span>
         </html>""")
         translator = Translator(lambda s: u"Voh")
@@ -240,9 +218,9 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Für Details siehe bitte [1:Hilfe]."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Für Details siehe bitte <a href="help.html">Hilfe</a>.</p>
-        </html>""".encode('utf-8'), tmpl.generate().render(encoding='utf-8'))
+        </html>""", tmpl.generate().render())
 
     def test_extract_i18n_msg_nonewline(self):
         tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/"
@@ -263,7 +241,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Für Details siehe bitte [1:Hilfe]"
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Für Details siehe bitte <a href="help.html">Hilfe</a></p>
         </html>""", tmpl.generate().render())
 
@@ -286,9 +264,9 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Für Details siehe bitte [1:Hilfe]"
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           Für Details siehe bitte <a href="help.html">Hilfe</a>
-        </html>""".encode('utf-8'), tmpl.generate().render(encoding='utf-8'))
+        </html>""", tmpl.generate().render())
 
     def test_extract_i18n_msg_with_attributes(self):
         tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/"
@@ -416,7 +394,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Für Details siehe bitte [1:[2:Hilfeseite]]."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Für Details siehe bitte <a href="help.html"><em>Hilfeseite</em></a>.</p>
         </html>""", tmpl.generate().render())
 
@@ -471,7 +449,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"[1:] Einträge pro Seite anzeigen."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p><input type="text" name="num"/> Einträge pro Seite anzeigen.</p>
         </html>""", tmpl.generate().render())
 
@@ -498,7 +476,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Für [2:Details] siehe bitte [1:Hilfe]."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Für <em>Details</em> siehe bitte <a href="help.html">Hilfe</a>.</p>
         </html>""", tmpl.generate().render())
 
@@ -522,13 +500,13 @@ class MsgDirectiveTestCase(unittest.TestCase):
           <p i18n:msg="">
             Show me <input type="text" name="num" /> entries per page, starting at page <input type="text" name="num" />.
           </p>
-        </html>""", encoding='utf-8')
+        </html>""")
         gettext = lambda s: u"[1:] Einträge pro Seite, beginnend auf Seite [2:]."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
-          <p><input type="text" name="num"/> Eintr\u00E4ge pro Seite, beginnend auf Seite <input type="text" name="num"/>.</p>
-        </html>""".encode('utf-8'), tmpl.generate().render(encoding='utf-8'))
+        self.assertEqual("""<html>
+          <p><input type="text" name="num"/> Eintr\xc3\xa4ge pro Seite, beginnend auf Seite <input type="text" name="num"/>.</p>
+        </html>""", tmpl.generate().render())
 
     def test_extract_i18n_msg_with_param(self):
         tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/"
@@ -567,7 +545,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"%(name)s, sei gegrüßt!"
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Jim, sei gegrüßt!</p>
         </html>""", tmpl.generate(user=dict(name='Jim')).render())
 
@@ -581,7 +559,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"Sei gegrüßt, [1:Alter]!"
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Sei gegrüßt, <a href="#42">Alter</a>!</p>
         </html>""", tmpl.generate(anchor='42').render())
 
@@ -639,7 +617,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         gettext = lambda s: u"[1:] Einträge pro Seite anzeigen."
         translator = Translator(gettext)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p><input type="text" name="num" value="x"/> Einträge pro Seite anzeigen.</p>
         </html>""", tmpl.generate().render())
 
@@ -698,7 +676,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         }))
         tmpl.filters.insert(0, translator)
         tmpl.add_directives(Translator.NAMESPACE, translator)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p title="Voh bär">Voh</p>
         </html>""", tmpl.generate().render())
 
@@ -742,9 +720,9 @@ class MsgDirectiveTestCase(unittest.TestCase):
         })
         translator = Translator(translations)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           Modificado à um dia por Pedro
-        </html>""".encode('utf-8'), tmpl.generate(date='um dia', author="Pedro").render(encoding='utf-8'))
+        </html>""", tmpl.generate(date='um dia', author="Pedro").render())
 
 
     def test_i18n_msg_ticket_251_extract(self):
@@ -771,9 +749,9 @@ class MsgDirectiveTestCase(unittest.TestCase):
         })
         translator = Translator(translations)
         translator.setup(tmpl)
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p><tt><b>Trandução[ 0 ]</b>: <em>Uma moeda</em></tt></p>
-        </html>""".encode('utf-8'), tmpl.generate().render(encoding='utf-8'))
+        </html>""", tmpl.generate().render())
 
     def test_extract_i18n_msg_with_other_directives_nested(self):
         tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/"
@@ -833,7 +811,7 @@ class MsgDirectiveTestCase(unittest.TestCase):
         self.assertEqual(1, len(messages))
         ctx = Context()
         ctx.push({'trac': {'homepage': 'http://trac.edgewall.org/'}})
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p>Antes de o fazer, porém,
             <strong>por favor tente <a href="http://trac.edgewall.org/search?ticket=yes&amp;noquickjump=1&amp;q=q">procurar</a>
             por problemas semelhantes</strong>, uma vez que é muito provável que este problema
@@ -868,11 +846,11 @@ class MsgDirectiveTestCase(unittest.TestCase):
             '[2:[3:trac.ini]]\n            and cannot be edited on this page.',
             messages[0][2]
         )
-        self.assertEqual(u"""<html>
+        self.assertEqual("""<html>
           <p class="hint"><strong>Nota:</strong> Este repositório está definido em
            <code><a href="href.wiki(TracIni)">trac.ini</a></code>
             e não pode ser editado nesta página.</p>
-        </html>""".encode('utf-8'), tmpl.generate(editable=False).render(encoding='utf-8'))
+        </html>""", tmpl.generate(editable=False).render())
 
     def test_extract_i18n_msg_with_py_strip(self):
         tmpl = MarkupTemplate("""<html xmlns:py="http://genshi.edgewall.org/"
@@ -1806,11 +1784,6 @@ class DomainDirectiveTestCase(unittest.TestCase):
             loader = TemplateLoader([dirname], callback=callback)
             tmpl = loader.load('tmpl10.html')
 
-            if IS_PYTHON2:
-                dgettext = translations.dugettext
-            else:
-                dgettext = translations.dgettext
-
             self.assertEqual("""<html>
                         <div>Included tmpl0</div>
                         <p title="foo_Bar 0">foo_Bar 0</p>
@@ -1837,7 +1810,7 @@ class DomainDirectiveTestCase(unittest.TestCase):
                         <p title="Voh">Voh 3</p>
                         <p title="Voh">Voh 3</p>
                 </html>""", tmpl.generate(idx=-1,
-                                          dg=dgettext).render())
+                                          dg=translations.dugettext).render())
         finally:
             shutil.rmtree(dirname)
 

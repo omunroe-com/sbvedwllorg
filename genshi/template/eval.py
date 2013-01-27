@@ -24,8 +24,6 @@ from genshi.template.astutil import ASTTransformer, ASTCodeGenerator, \
 from genshi.template.base import TemplateRuntimeError
 from genshi.util import flatten
 
-from genshi.compat import get_code_params, build_code_chunk, IS_PYTHON2
-
 __all__ = ['Code', 'Expression', 'Suite', 'LenientLookup', 'StrictLookup',
            'Undefined', 'UndefinedError']
 __docformat__ = 'restructuredtext en'
@@ -100,7 +98,10 @@ class Code(object):
     def __getstate__(self):
         state = {'source': self.source, 'ast': self.ast,
                  'lookup': self._globals.im_self}
-        state['code'] = get_code_params(self.code)
+        c = self.code
+        state['code'] = (c.co_nlocals, c.co_stacksize, c.co_flags, c.co_code,
+                         c.co_consts, c.co_names, c.co_varnames, c.co_filename,
+                         c.co_name, c.co_firstlineno, c.co_lnotab, (), ())
         return state
 
     def __setstate__(self, state):
@@ -235,17 +236,15 @@ class Undefined(object):
     of that variable, will raise an exception that includes the name used to
     reference that undefined variable.
     
-    >>> try:
-    ...     foo('bar')
-    ... except UndefinedError, e:
-    ...     print e.msg
-    "foo" not defined
+    >>> foo('bar')
+    Traceback (most recent call last):
+        ...
+    UndefinedError: "foo" not defined
 
-    >>> try:
-    ...     foo.bar
-    ... except UndefinedError, e:
-    ...     print e.msg
-    "foo" not defined
+    >>> foo.bar
+    Traceback (most recent call last):
+        ...
+    UndefinedError: "foo" not defined
     
     :see: `LenientLookup`
     """
@@ -389,21 +388,19 @@ class StrictLookup(LookupBase):
     raise an ``UndefinedError``:
     
     >>> expr = Expression('nothing', lookup='strict')
-    >>> try:
-    ...     expr.evaluate({})
-    ... except UndefinedError, e:
-    ...     print e.msg
-    "nothing" not defined
+    >>> expr.evaluate({})
+    Traceback (most recent call last):
+        ...
+    UndefinedError: "nothing" not defined
     
     The same happens when a non-existing attribute or item is accessed on an
     existing object:
     
     >>> expr = Expression('something.nil', lookup='strict')
-    >>> try:
-    ...     expr.evaluate({'something': dict()})
-    ... except UndefinedError, e:
-    ...     print e.msg
-    {} has no member named "nil"
+    >>> expr.evaluate({'something': dict()})
+    Traceback (most recent call last):
+        ...
+    UndefinedError: {} has no member named "nil"
     """
 
     @classmethod
@@ -424,22 +421,17 @@ def _parse(source, mode='eval'):
                 rest = '\n'.join(['    %s' % line for line in rest.splitlines()])
             source = '\n'.join([first, rest])
     if isinstance(source, unicode):
-        source = (u'\ufeff' + source).encode('utf-8')
+        source = '\xef\xbb\xbf' + source.encode('utf-8')
     return parse(source, mode)
 
 
 def _compile(node, source=None, mode='eval', filename=None, lineno=-1,
              xform=None):
-    if not filename:
+    if isinstance(filename, unicode):
+        # unicode file names not allowed for code objects
+        filename = filename.encode('utf-8', 'replace')
+    elif not filename:
         filename = '<string>'
-    if IS_PYTHON2:
-        # Python 2 requires non-unicode filenames
-        if isinstance(filename, unicode):
-            filename = filename.encode('utf-8', 'replace')
-    else:
-        # Python 3 requires unicode filenames
-        if not isinstance(filename, unicode):
-            filename = filename.decode('utf-8', 'replace')
     if lineno <= 0:
         lineno = 1
 
@@ -466,7 +458,10 @@ def _compile(node, source=None, mode='eval', filename=None, lineno=-1,
     try:
         # We'd like to just set co_firstlineno, but it's readonly. So we need
         # to clone the code object while adjusting the line number
-        return build_code_chunk(code, filename, name, lineno)
+        return CodeType(0, code.co_nlocals, code.co_stacksize,
+                        code.co_flags | 0x0040, code.co_code, code.co_consts,
+                        code.co_names, code.co_varnames, filename, name,
+                        lineno, code.co_lnotab, (), ())
     except RuntimeError:
         return code
 
@@ -498,8 +493,6 @@ class TemplateASTTransformer(ASTTransformer):
     def _extract_names(self, node):
         names = set()
         def _process(node):
-            if not IS_PYTHON2 and isinstance(node, _ast.arg):
-                names.add(node.arg)
             if isinstance(node, _ast.Name):
                 names.add(node.id)
             elif isinstance(node, _ast.alias):
@@ -520,7 +513,7 @@ class TemplateASTTransformer(ASTTransformer):
         return names
 
     def visit_Str(self, node):
-        if not isinstance(node.s, unicode):
+        if isinstance(node.s, str):
             try: # If the string is ASCII, return a `str` object
                 node.s.decode('ascii')
             except ValueError: # Otherwise return a `unicode` object

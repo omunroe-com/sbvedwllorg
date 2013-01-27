@@ -35,15 +35,13 @@ except ImportError:
 
 _speedup_available = False
 
-is_pypy = hasattr(sys, 'pypy_version_info')
 
 class optional_build_ext(build_ext):
     # This class allows C extension building to fail.
     def run(self):
         try:
             build_ext.run(self)
-        except DistutilsPlatformError:
-            _etype, e, _tb = sys.exc_info()
+        except DistutilsPlatformError, e:
             self._unavailable(e)
 
     def build_extension(self, ext):
@@ -51,8 +49,7 @@ class optional_build_ext(build_ext):
             build_ext.build_extension(self, ext)
             global _speedup_available
             _speedup_available = True
-        except CCompilerError:
-            _etype, e, _tb = sys.exc_info()
+        except CCompilerError, e:
             self._unavailable(e)
 
     def _unavailable(self, exc):
@@ -67,7 +64,7 @@ available.""")
 if Feature:
     speedups = Feature(
         "optional C speed-enhancements",
-        standard = not is_pypy,
+        standard = False,
         ext_modules = [
             Extension('genshi._speedups', ['genshi/_speedups.c']),
         ],
@@ -89,29 +86,9 @@ if bdist_egg:
     cmdclass['bdist_egg'] = my_bdist_egg
 
 
-# Use 2to3 if we're running under Python 3 (with Distribute)
-extra = {}
-if sys.version_info >= (3,):
-    extra['use_2to3'] = True
-    extra['convert_2to3_doctests'] = []
-    extra['use_2to3_fixers'] = ['fixes']
-    # Install genshi template tests
-    extra['include_package_data'] = True
-
-
-# include tests for python3 setup.py test (needed when creating
-# source distributions on python2 too so that they work on python3)
-packages = [
-    'genshi', 'genshi.filters', 'genshi.template',
-    'genshi.tests', 'genshi.filters.tests',
-    'genshi.template.tests',
-    'genshi.template.tests.templates',
-]
-
-
 setup(
     name = 'Genshi',
-    version = '0.8',
+    version = '0.6.1',
     description = 'A toolkit for generation of output for the web',
     long_description = \
 """Genshi is a Python library that provides an integrated set of
@@ -131,15 +108,13 @@ feature is a template language, which is heavily inspired by Kid.""",
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 3',
         'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Text Processing :: Markup :: HTML',
         'Topic :: Text Processing :: Markup :: XML'
     ],
     keywords = ['python.templating.engines'],
-    packages = packages,
+    packages = ['genshi', 'genshi.filters', 'genshi.template'],
     test_suite = 'genshi.tests.suite',
 
     extras_require = {
@@ -157,7 +132,5 @@ feature is a template language, which is heavily inspired by Kid.""",
     """,
 
     features = {'speedups': speedups},
-    cmdclass = cmdclass,
-
-    **extra
+    cmdclass = cmdclass
 )

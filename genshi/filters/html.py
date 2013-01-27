@@ -32,7 +32,7 @@ class HTMLFormFiller(object):
     >>> from genshi.input import HTML
     >>> html = HTML('''<form>
     ...   <p><input type="text" name="foo" /></p>
-    ... </form>''', encoding='utf-8')
+    ... </form>''')
     >>> filler = HTMLFormFiller(data={'foo': 'bar'})
     >>> print(html | filler)
     <form>
@@ -100,13 +100,13 @@ class HTMLFormFiller(object):
                                 declval = attrs.get('value')
                                 checked = False
                                 if isinstance(value, (list, tuple)):
-                                    if declval is not None:
+                                    if declval:
                                         checked = declval in [unicode(v) for v
                                                               in value]
                                     else:
                                         checked = any(value)
                                 else:
-                                    if declval is not None:
+                                    if declval:
                                         checked = declval == unicode(value)
                                     elif type == 'checkbox':
                                         checked = bool(value)
@@ -183,10 +183,9 @@ class HTMLFormFiller(object):
                     no_option_value = False
                     option_start = option_value = None
                     option_text = []
-                elif in_textarea and tagname == 'textarea':
+                elif tagname == 'textarea':
                     if textarea_value:
                         yield TEXT, unicode(textarea_value), pos
-                        textarea_value = None
                     in_textarea = False
                 yield kind, data, pos
 
@@ -199,7 +198,7 @@ class HTMLSanitizer(object):
     from the stream.
     
     >>> from genshi import HTML
-    >>> html = HTML('<div><script>alert(document.cookie)</script></div>', encoding='utf-8')
+    >>> html = HTML('<div><script>alert(document.cookie)</script></div>')
     >>> print(html | HTMLSanitizer())
     <div/>
     
@@ -207,7 +206,7 @@ class HTMLSanitizer(object):
     is instantiated. For example, to allow inline ``style`` attributes, the
     following instantation would work:
     
-    >>> html = HTML('<div style="background: #000"></div>', encoding='utf-8')
+    >>> html = HTML('<div style="background: #000"></div>')
     >>> sanitizer = HTMLSanitizer(safe_attrs=HTMLSanitizer.SAFE_ATTRS | set(['style']))
     >>> print(html | sanitizer)
     <div style="background: #000"/>
@@ -215,7 +214,7 @@ class HTMLSanitizer(object):
     Note that even in this case, the filter *does* attempt to remove dangerous
     constructs from style attributes:
 
-    >>> html = HTML('<div style="background: url(javascript:void); color: #000"></div>', encoding='utf-8')
+    >>> html = HTML('<div style="background: url(javascript:void); color: #000"></div>')
     >>> print(html | sanitizer)
     <div style="color: #000"/>
     

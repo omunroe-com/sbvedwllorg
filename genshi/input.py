@@ -16,16 +16,14 @@ sources.
 """
 
 from itertools import chain
-import codecs
 import htmlentitydefs as entities
 import HTMLParser as html
+from StringIO import StringIO
 from xml.parsers import expat
 
 from genshi.core import Attrs, QName, Stream, stripentities
 from genshi.core import START, END, XML_DECL, DOCTYPE, TEXT, START_NS, \
                         END_NS, START_CDATA, END_CDATA, PI, COMMENT
-from genshi.compat import StringIO, BytesIO
-
 
 __all__ = ['ET', 'ParseError', 'XMLParser', 'XML', 'HTMLParser', 'HTML']
 __docformat__ = 'restructuredtext en'
@@ -92,7 +90,7 @@ class XMLParser(object):
 
     _entitydefs = ['<!ENTITY %s "&#%d;">' % (name, value) for name, value in
                    entities.name2codepoint.items()]
-    _external_dtd = u'\n'.join(_entitydefs).encode('utf-8')
+    _external_dtd = '\n'.join(_entitydefs)
 
     def __init__(self, source, filename=None, encoding=None):
         """Initialize the parser for the given XML input.
@@ -110,9 +108,7 @@ class XMLParser(object):
         # Setup the Expat parser
         parser = expat.ParserCreate(encoding, '}')
         parser.buffer_text = True
-        # Python 3 does not have returns_unicode
-        if hasattr(parser, 'returns_unicode'):
-            parser.returns_unicode = True
+        parser.returns_unicode = True
         parser.ordered_attributes = True
 
         parser.StartElementHandler = self._handle_start
@@ -150,7 +146,7 @@ class XMLParser(object):
                 while 1:
                     while not done and len(self._queue) == 0:
                         data = self.source.read(bufsize)
-                        if not data: # end of data
+                        if data == '': # end of data
                             if hasattr(self, 'expat'):
                                 self.expat.Parse('', True)
                                 del self.expat # get rid of circular references
@@ -174,7 +170,7 @@ class XMLParser(object):
 
     def _build_foreign(self, context, base, sysid, pubid):
         parser = self.expat.ExternalEntityParserCreate(context)
-        parser.ParseFile(BytesIO(self._external_dtd))
+        parser.ParseFile(StringIO(self._external_dtd))
         return 1
 
     def _enqueue(self, kind, data=None, pos=None):
@@ -283,7 +279,7 @@ class HTMLParser(html.HTMLParser, object):
     
     The parsing is initiated by iterating over the parser object:
     
-    >>> parser = HTMLParser(BytesIO(u'<UL compact><LI>Foo</UL>'.encode('utf-8')), encoding='utf-8')
+    >>> parser = HTMLParser(StringIO('<UL compact><LI>Foo</UL>'))
     >>> for kind, data, pos in parser:
     ...     print('%s %s' % (kind, data))
     START (QName('ul'), Attrs([(QName('compact'), u'compact')]))
@@ -297,7 +293,7 @@ class HTMLParser(html.HTMLParser, object):
                               'hr', 'img', 'input', 'isindex', 'link', 'meta',
                               'param'])
 
-    def __init__(self, source, filename=None, encoding=None):
+    def __init__(self, source, filename=None, encoding='utf-8'):
         """Initialize the parser for the given HTML input.
         
         :param source: the HTML text as a file-like object
@@ -318,23 +314,16 @@ class HTMLParser(html.HTMLParser, object):
         :raises ParseError: if the HTML text is not well formed
         """
         def _generate():
-            if self.encoding:
-                reader = codecs.getreader(self.encoding)
-                source = reader(self.source)
-            else:
-                source = self.source
             try:
                 bufsize = 4 * 1024 # 4K
                 done = False
                 while 1:
                     while not done and len(self._queue) == 0:
-                        data = source.read(bufsize)
-                        if not data: # end of data
+                        data = self.source.read(bufsize)
+                        if data == '': # end of data
                             self.close()
                             done = True
                         else:
-                            if not isinstance(data, unicode):
-                                raise UnicodeError("source returned bytes, but no encoding specified")
                             self.feed(data)
                     for kind, data, pos in self._queue:
                         yield kind, data, pos
@@ -366,7 +355,9 @@ class HTMLParser(html.HTMLParser, object):
         fixed_attrib = []
         for name, value in attrib: # Fixup minimized attributes
             if value is None:
-                value = name
+                value = unicode(name)
+            elif not isinstance(value, unicode):
+                value = value.decode(self.encoding, 'replace')
             fixed_attrib.append((QName(name), stripentities(value)))
 
         self._enqueue(START, (QName(tag), Attrs(fixed_attrib)))
@@ -384,6 +375,8 @@ class HTMLParser(html.HTMLParser, object):
                     break
 
     def handle_data(self, text):
+        if not isinstance(text, unicode):
+            text = text.decode(self.encoding, 'replace')
         self._enqueue(TEXT, text)
 
     def handle_charref(self, name):
@@ -415,13 +408,13 @@ class HTMLParser(html.HTMLParser, object):
         self._enqueue(COMMENT, text)
 
 
-def HTML(text, encoding=None):
+def HTML(text, encoding='utf-8'):
     """Parse the given HTML source and return a markup stream.
     
     Unlike with `HTMLParser`, the returned stream is reusable, meaning it can be
     iterated over multiple times:
     
-    >>> html = HTML('<body><h1>Foo</h1></body>', encoding='utf-8')
+    >>> html = HTML('<body><h1>Foo</h1></body>')
     >>> print(html)
     <body><h1>Foo</h1></body>
     >>> print(html.select('h1'))
@@ -434,12 +427,7 @@ def HTML(text, encoding=None):
     :raises ParseError: if the HTML text is not well-formed, and error recovery
                         fails
     """
-    if isinstance(text, unicode):
-        # If it's unicode text the encoding should be set to None.
-        # The option to pass in an incorrect encoding is for ease
-        # of writing doctests that work in both Python 2.x and 3.x.
-        return Stream(list(HTMLParser(StringIO(text), encoding=None)))
-    return Stream(list(HTMLParser(BytesIO(text), encoding=encoding)))
+    return Stream(list(HTMLParser(StringIO(text), encoding=encoding)))
 
 
 def _coalesce(stream):
